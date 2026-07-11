@@ -17,7 +17,7 @@ const draft = await fetch(new URL("/api/v1/release-manifests/draft", base), { me
 const unpaid = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": `${idempotency}-unpaid` }, body: JSON.stringify(request) }); gates.push({ gate: "unpaid challenge", result: unpaid.status === 402 && Boolean(unpaid.headers.get("payment-required")) ? "PASS" : "FAIL", detail: `HTTP ${unpaid.status}` });
 const account = privateKeyToAccount(signerValue as `0x${string}`); const publicClient = createPublicClient({ chain: xLayer, transport: http() }); const paidFetch = wrapFetchWithPaymentFromConfig(fetch, { schemes: [{ network: "eip155:196", client: new ExactEvmScheme(toClientEvmSigner(account, publicClient)) }] });
 let paid = await paidFetch(endpoint, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": `${idempotency}-paid` }, body: JSON.stringify(request) });
-for (let attempt = 0; paid.status === 503 && attempt < 30; attempt += 1) {
+for (let attempt = 0; [409, 503].includes(paid.status) && attempt < 30; attempt += 1) {
   await new Promise((resolve) => setTimeout(resolve, 2_000));
   paid = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": `${idempotency}-paid` }, body: JSON.stringify(request) });
 }
