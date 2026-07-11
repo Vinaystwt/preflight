@@ -3,14 +3,16 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import type { FastifyInstance } from "fastify";
 import type { Config } from "../config.js";
 
-const PLACEHOLDER = {
+const SERVICE = {
   service: "verify_release",
-  status: "contract_pending",
+  status: "contract_frozen",
   purpose: "Compare an operator-confirmed release manifest with observable production behavior.",
   paid_endpoint: "/api/v1/verify-release",
   price_usdt: "0.10",
   decisions: ["RELEASE", "BLOCK", "UNKNOWN"],
-  limitations: ["Public HTTPS endpoints only", "No target payment", "Contract freezes in Stage B"]
+  manifest_schema: "preflight.release-manifest.v1",
+  report_schema: "preflight.release-report.v1",
+  limitations: ["Public HTTPS endpoints only", "No target payment", "No listing-approval or security guarantee"]
 } as const;
 
 function createDiscoveryServer(config: Config): McpServer {
@@ -19,7 +21,7 @@ function createDiscoveryServer(config: Config): McpServer {
     description: "Returns discovery information for the single PreFlight Release Gate service.",
     inputSchema: {}
   }, () => {
-    const value = { ...PLACEHOLDER, paid_endpoint: `https://${config.PUBLIC_DOMAIN}${PLACEHOLDER.paid_endpoint}` };
+    const value = { ...SERVICE, price_usdt: config.PRICE_VERIFY_RELEASE, paid_endpoint: `https://${config.PUBLIC_DOMAIN}${SERVICE.paid_endpoint}` };
     return { content: [{ type: "text" as const, text: JSON.stringify(value) }], structuredContent: value };
   });
   return server;

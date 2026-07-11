@@ -14,6 +14,7 @@ import { mountBadge } from "./routes/badge.js";
 import { mountPublicCors } from "./routes/cors.js";
 import { mountHealthIndex } from "./routes/health-index.js";
 import { mountPlayground } from "./routes/playground.js";
+import { mountReleaseGate } from "./routes/release-gate.js";
 
 function createTargetLimiter(max: number) {
   const entries = new Map<string, number[]>();
@@ -77,11 +78,12 @@ export async function buildServer(source: NodeJS.ProcessEnv = process.env) {
     mountBadge(app, database, config);
     mountHealthIndex(app, database);
   } else mountLegacyGone(app);
+  const releaseGate = mountReleaseGate(app, config, database);
 
   const health = async () => {
     let db = "disabled";
     if (database) { try { await database.health(); db = "ok"; } catch { db = "down"; } }
-    return { ok: db !== "down", build_sha: config.BUILD_SHA, db, settlement_listener: payments.listenerStatus };
+    return { ok: db !== "down", build_sha: config.BUILD_SHA, db, settlement_listener: payments.listenerStatus, release_reconciliation: releaseGate.reconciliation };
   };
   app.get("/health", health);
   app.get("/livez", async () => ({ ok: true, build_sha: config.BUILD_SHA }));

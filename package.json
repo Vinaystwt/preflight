@@ -17,6 +17,8 @@
     "selftest:stage2": "tsx scripts/stage2-selftest.ts",
     "selftest:stage4": "tsx scripts/stage4-selftest.ts",
     "scan-market": "tsx scripts/scan-market.ts"
+    ,"generate:openapi": "tsx scripts/generate-openapi.ts"
+    ,"selftest:release": "tsx scripts/selftest-release.ts"
   },
   "dependencies": {
     "@fastify/rate-limit": "^11.1.0",

@@ -70,7 +70,7 @@ describe("PreFlight dogfood", () => {
       expect(toolNames).toEqual(["preflight_service_info"]);
       const called = await app.inject({ method: "POST", url: "/mcp", headers, payload: { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "preflight_service_info", arguments: {} } } });
       const pointer = (called.json() as { result: { structuredContent: Record<string, unknown> } }).result.structuredContent;
-      expect(pointer).toMatchObject({ service: "verify_release", status: "contract_pending", price_usdt: "0.10" });
+      expect(pointer).toMatchObject({ service: "verify_release", status: "contract_frozen", price_usdt: "0.10" });
 
       const golden = await fixture("golden");
       const services: PreflightServices = {

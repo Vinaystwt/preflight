@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS payment_attempts (
   payment_payload_hash text,
   network text NOT NULL,
   asset text NOT NULL,
-  amount_atomic text NOT NULL CHECK (amount_atomic ~ '^\\d+$'),
+  amount_atomic text NOT NULL CHECK (amount_atomic ~ '^[0-9]+$'),
   pay_to text NOT NULL,
   payer text,
   verification_state text NOT NULL,
@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS payment_attempts (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS payment_attempt_identifier_idx ON payment_attempts(payment_identifier) WHERE payment_identifier IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS payment_attempt_payload_idx ON payment_attempts(payment_payload_hash) WHERE payment_payload_hash IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS audit_events (
   id bigserial PRIMARY KEY,

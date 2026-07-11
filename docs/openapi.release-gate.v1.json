@@ -1,0 +1,1387 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PreFlight Release Gate API",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.usepreflight.xyz"
+    }
+  ],
+  "paths": {
+    "/livez": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Process is live"
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Dependencies are ready"
+          },
+          "503": {
+            "description": "Not ready"
+          }
+        }
+      }
+    },
+    "/api/v1/service": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Service metadata"
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/release-manifest/v1": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Frozen Release Manifest JSON Schema"
+          }
+        }
+      }
+    },
+    "/api/v1/release-manifests/draft": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseManifestV1"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validated draft; never a verdict"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/verify-release": {
+      "post": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16
+            }
+          },
+          {
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyReleaseRequestV1"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Settlement-confirmed private report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyReleaseResponseV1"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "description": "x402 v2 challenge",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reports/{report_id}": {
+      "get": {
+        "security": [
+          {
+            "bearerCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Private report"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "410": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ReleaseManifestV1": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "preflight.release-manifest.v1"
+          },
+          "release": {
+            "type": "object",
+            "properties": {
+              "service_name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "release_version": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              }
+            },
+            "required": [
+              "service_name"
+            ],
+            "additionalProperties": false
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "endpoint": {
+                "type": "string",
+                "format": "uri"
+              },
+              "method": {
+                "type": "string",
+                "const": "POST"
+              },
+              "interface_mode": {
+                "type": "string",
+                "enum": [
+                  "FREE_HTTP",
+                  "X402_HTTP",
+                  "MCP_PLUS_FREE_HTTP",
+                  "MCP_PLUS_X402_HTTP"
+                ]
+              },
+              "mcp_url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "redirect_policy": {
+                "type": "string",
+                "enum": [
+                  "NONE",
+                  "SAME_ORIGIN"
+                ]
+              }
+            },
+            "required": [
+              "endpoint",
+              "method",
+              "interface_mode"
+            ],
+            "additionalProperties": false
+          },
+          "payment": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "const": "FREE"
+                  }
+                },
+                "required": [
+                  "mode"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "const": "X402"
+                  },
+                  "network": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "asset": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "amount_atomic": {
+                    "type": "string",
+                    "pattern": "^\\d+$"
+                  },
+                  "pay_to": {
+                    "type": "string",
+                    "pattern": "^0x[a-fA-F0-9]{40}$"
+                  }
+                },
+                "required": [
+                  "mode",
+                  "network",
+                  "asset",
+                  "amount_atomic",
+                  "pay_to"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "request_contract": {
+            "type": "object",
+            "properties": {
+              "content_type": {
+                "type": "string",
+                "const": "application/json"
+              },
+              "schema": {
+                "$ref": "#/$defs/__schema0"
+              }
+            },
+            "required": [
+              "content_type",
+              "schema"
+            ],
+            "additionalProperties": false
+          },
+          "response_contract": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "boolean"
+              },
+              "schema": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "observable_via": {
+                "type": "string",
+                "enum": [
+                  "MCP_OUTPUT_SCHEMA",
+                  "FREE_RESPONSE"
+                ]
+              }
+            },
+            "required": [
+              "required",
+              "schema",
+              "observable_via"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "release",
+          "target",
+          "payment"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "object",
+                  "array",
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "null"
+                ]
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "properties": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              "required": {
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "enum": {
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema1"
+                }
+              },
+              "const": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "additionalProperties": {
+                "type": "boolean"
+              },
+              "minLength": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "maxLength": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "minimum": {
+                "type": "number"
+              },
+              "maximum": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": false
+          },
+          "__schema1": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema1"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema1"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "VerifyReleaseRequestV1": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "preflight.verify-release-request.v1"
+          },
+          "manifest": {
+            "type": "object",
+            "properties": {
+              "schema_version": {
+                "type": "string",
+                "const": "preflight.release-manifest.v1"
+              },
+              "release": {
+                "type": "object",
+                "properties": {
+                  "service_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "release_version": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "service_name"
+                ],
+                "additionalProperties": false
+              },
+              "target": {
+                "type": "object",
+                "properties": {
+                  "endpoint": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "method": {
+                    "type": "string",
+                    "const": "POST"
+                  },
+                  "interface_mode": {
+                    "type": "string",
+                    "enum": [
+                      "FREE_HTTP",
+                      "X402_HTTP",
+                      "MCP_PLUS_FREE_HTTP",
+                      "MCP_PLUS_X402_HTTP"
+                    ]
+                  },
+                  "mcp_url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "redirect_policy": {
+                    "type": "string",
+                    "enum": [
+                      "NONE",
+                      "SAME_ORIGIN"
+                    ]
+                  }
+                },
+                "required": [
+                  "endpoint",
+                  "method",
+                  "interface_mode"
+                ],
+                "additionalProperties": false
+              },
+              "payment": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "const": "FREE"
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "const": "X402"
+                      },
+                      "network": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "asset": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "amount_atomic": {
+                        "type": "string",
+                        "pattern": "^\\d+$"
+                      },
+                      "pay_to": {
+                        "type": "string",
+                        "pattern": "^0x[a-fA-F0-9]{40}$"
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "network",
+                      "asset",
+                      "amount_atomic",
+                      "pay_to"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "request_contract": {
+                "type": "object",
+                "properties": {
+                  "content_type": {
+                    "type": "string",
+                    "const": "application/json"
+                  },
+                  "schema": {
+                    "$ref": "#/$defs/__schema0"
+                  }
+                },
+                "required": [
+                  "content_type",
+                  "schema"
+                ],
+                "additionalProperties": false
+              },
+              "response_contract": {
+                "type": "object",
+                "properties": {
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "schema": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "observable_via": {
+                    "type": "string",
+                    "enum": [
+                      "MCP_OUTPUT_SCHEMA",
+                      "FREE_RESPONSE"
+                    ]
+                  }
+                },
+                "required": [
+                  "required",
+                  "schema",
+                  "observable_via"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "schema_version",
+              "release",
+              "target",
+              "payment"
+            ],
+            "additionalProperties": false
+          },
+          "probe_input": {
+            "$ref": "#/$defs/__schema1"
+          }
+        },
+        "required": [
+          "schema_version",
+          "manifest"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "object",
+                  "array",
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "null"
+                ]
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "properties": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              "required": {
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "enum": {
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema1"
+                }
+              },
+              "const": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "additionalProperties": {
+                "type": "boolean"
+              },
+              "minLength": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "maxLength": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "minimum": {
+                "type": "number"
+              },
+              "maximum": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": false
+          },
+          "__schema1": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema1"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema1"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "VerifyReleaseResponseV1": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "preflight.release-report.v1"
+          },
+          "report_id": {
+            "type": "string",
+            "minLength": 16
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "RELEASE",
+              "BLOCK",
+              "UNKNOWN"
+            ]
+          },
+          "manifest": {
+            "type": "object",
+            "properties": {
+              "schema_version": {
+                "type": "string"
+              },
+              "manifest_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "canonical_manifest": {
+                "type": "object",
+                "properties": {
+                  "schema_version": {
+                    "type": "string",
+                    "const": "preflight.release-manifest.v1"
+                  },
+                  "release": {
+                    "type": "object",
+                    "properties": {
+                      "service_name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "release_version": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      }
+                    },
+                    "required": [
+                      "service_name"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "target": {
+                    "type": "object",
+                    "properties": {
+                      "endpoint": {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      "method": {
+                        "type": "string",
+                        "const": "POST"
+                      },
+                      "interface_mode": {
+                        "type": "string",
+                        "enum": [
+                          "FREE_HTTP",
+                          "X402_HTTP",
+                          "MCP_PLUS_FREE_HTTP",
+                          "MCP_PLUS_X402_HTTP"
+                        ]
+                      },
+                      "mcp_url": {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      "redirect_policy": {
+                        "type": "string",
+                        "enum": [
+                          "NONE",
+                          "SAME_ORIGIN"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "endpoint",
+                      "method",
+                      "interface_mode"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "payment": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "const": "FREE"
+                          }
+                        },
+                        "required": [
+                          "mode"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "const": "X402"
+                          },
+                          "network": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "asset": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "amount_atomic": {
+                            "type": "string",
+                            "pattern": "^\\d+$"
+                          },
+                          "pay_to": {
+                            "type": "string",
+                            "pattern": "^0x[a-fA-F0-9]{40}$"
+                          }
+                        },
+                        "required": [
+                          "mode",
+                          "network",
+                          "asset",
+                          "amount_atomic",
+                          "pay_to"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "request_contract": {
+                    "type": "object",
+                    "properties": {
+                      "content_type": {
+                        "type": "string",
+                        "const": "application/json"
+                      },
+                      "schema": {
+                        "$ref": "#/$defs/__schema0"
+                      }
+                    },
+                    "required": [
+                      "content_type",
+                      "schema"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "response_contract": {
+                    "type": "object",
+                    "properties": {
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "schema": {
+                        "$ref": "#/$defs/__schema0"
+                      },
+                      "observable_via": {
+                        "type": "string",
+                        "enum": [
+                          "MCP_OUTPUT_SCHEMA",
+                          "FREE_RESPONSE"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "required",
+                      "schema",
+                      "observable_via"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "schema_version",
+                  "release",
+                  "target",
+                  "payment"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "schema_version",
+              "manifest_hash",
+              "canonical_manifest"
+            ],
+            "additionalProperties": false
+          },
+          "runtime_snapshot": {
+            "type": "object",
+            "properties": {
+              "snapshot_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "captured_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "requested_url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "final_url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "build_identifier": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "snapshot_hash",
+              "captured_at",
+              "requested_url"
+            ],
+            "additionalProperties": false
+          },
+          "policy_version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "matched": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "contradictions": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "unknown": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "not_applicable": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "matched",
+              "contradictions",
+              "unknown",
+              "not_applicable"
+            ],
+            "additionalProperties": false
+          },
+          "criterion_groups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "criteria": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "group": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "MATCH",
+                          "CONTRADICTION",
+                          "UNKNOWN",
+                          "NOT_APPLICABLE"
+                        ]
+                      },
+                      "mandatory": {
+                        "type": "boolean"
+                      },
+                      "expected": {
+                        "$ref": "#/$defs/__schema1"
+                      },
+                      "observed": {
+                        "$ref": "#/$defs/__schema1"
+                      },
+                      "provenance": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "OPERATOR_SUPPLIED",
+                            "OBSERVED",
+                            "DERIVED",
+                            "UNAVAILABLE"
+                          ]
+                        }
+                      },
+                      "comparison_rule": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "consequence": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "remediation": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "evidence_refs": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "source": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "captured_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                            },
+                            "digest": {
+                              "type": "string",
+                              "pattern": "^sha256:[a-f0-9]{64}$"
+                            },
+                            "summary": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "freshness_seconds": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "source",
+                            "captured_at",
+                            "digest",
+                            "summary",
+                            "freshness_seconds"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "limitation": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "code",
+                      "group",
+                      "state",
+                      "mandatory",
+                      "provenance",
+                      "comparison_rule",
+                      "evidence_refs"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "criteria"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "report_expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "report_access": {
+            "type": "object",
+            "properties": {
+              "report_url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "access_token": {
+                "type": "string",
+                "minLength": 43
+              }
+            },
+            "required": [
+              "report_url",
+              "access_token"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "report_id",
+          "decision",
+          "manifest",
+          "runtime_snapshot",
+          "policy_version",
+          "summary",
+          "criterion_groups",
+          "limitations",
+          "generated_at",
+          "report_expires_at",
+          "report_access"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "object",
+                  "array",
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "null"
+                ]
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "properties": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              "required": {
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "enum": {
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema1"
+                }
+              },
+              "const": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "additionalProperties": {
+                "type": "boolean"
+              },
+              "minLength": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "maxLength": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "minimum": {
+                "type": "number"
+              },
+              "maximum": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": false
+          },
+          "__schema1": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema1"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema1"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "ApiErrorV1": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "preflight.error.v1"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "category": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION",
+                  "PAYMENT",
+                  "RATE_LIMIT",
+                  "DEPENDENCY",
+                  "INTERNAL",
+                  "REPORT_ACCESS"
+                ]
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "charge_status": {
+                "type": "string",
+                "enum": [
+                  "NOT_CHARGED",
+                  "SETTLED",
+                  "UNKNOWN"
+                ]
+              },
+              "request_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "details": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "category",
+              "retryable",
+              "charge_status",
+              "request_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "error"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Typed API error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiErrorV1"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerCapability": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}
