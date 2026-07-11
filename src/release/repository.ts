@@ -30,6 +30,36 @@ export class ReleaseRepository {
       WHERE vr.lifecycle_status IN ('PAYMENT_VERIFIED','PROBING','REPORT_PREPARED','SETTLEMENT_PENDING')`;
     return (rows[0]?.target_active ?? globalLimit) < targetLimit && (rows[0]?.global_active ?? globalLimit) < globalLimit;
   }
+  async claimPaidConcurrency(runId: string, target: string, targetLimit = 3, globalLimit = 20): Promise<boolean> {
+    return this.sql.begin(async (transaction) => {
+      await transaction`SELECT pg_advisory_xact_lock(hashtext('preflight:paid:global'))`;
+      await transaction`SELECT pg_advisory_xact_lock(hashtext(${'preflight:paid:target:' + target}))`;
+      const rows = await transaction<Array<{ target_active: number; global_active: number }>>`
+        SELECT count(*) FILTER (WHERE rm.canonical_manifest->'target'->>'endpoint' = ${target})::int AS target_active,
+               count(*)::int AS global_active
+        FROM verification_runs vr JOIN release_manifests rm ON rm.id = vr.manifest_id
+        WHERE vr.lifecycle_status IN ('PAYMENT_VERIFIED','PROBING','REPORT_PREPARED','SETTLEMENT_PENDING')`;
+      if ((rows[0]?.target_active ?? targetLimit) >= targetLimit || (rows[0]?.global_active ?? globalLimit) >= globalLimit) return false;
+      const claimed = await transaction`UPDATE verification_runs SET lifecycle_status='PAYMENT_VERIFIED', updated_at=now() WHERE id=${runId} AND lifecycle_status='REQUEST_VALIDATED' RETURNING id`;
+      if (!claimed.length) return false;
+      await transaction`INSERT INTO audit_events (run_id, event_type, safe_metadata) VALUES (${runId}, 'PAYMENT_VERIFIED', '{}'::jsonb)`;
+      return true;
+    });
+  }
+  async claimDraftConcurrency(target: string, requestId: string, limit = 2): Promise<boolean> {
+    const scope = `draft_active:${hash(target)}`; const key = hash(requestId);
+    return this.sql.begin(async (transaction) => {
+      await transaction`SELECT pg_advisory_xact_lock(hashtext(${'preflight:' + scope}))`;
+      await transaction`DELETE FROM rate_limit_counters WHERE scope=${scope} AND updated_at < now() - interval '2 minutes'`;
+      const active = await transaction<Array<{ count: number }>>`SELECT count(*)::int AS count FROM rate_limit_counters WHERE scope=${scope}`;
+      if ((active[0]?.count ?? limit) >= limit) return false;
+      await transaction`INSERT INTO rate_limit_counters (scope, key_hash, window_start, count) VALUES (${scope}, ${key}, now(), 1)`;
+      return true;
+    });
+  }
+  async releaseDraftConcurrency(target: string, requestId: string): Promise<void> {
+    await this.sql`DELETE FROM rate_limit_counters WHERE scope=${'draft_active:' + hash(target)} AND key_hash=${hash(requestId)}`;
+  }
 
   async storeManifest(manifest: ReleaseManifestV1, manifestHash: string): Promise<string> {
     const rows = await this.sql<Array<{ id: string }>>`

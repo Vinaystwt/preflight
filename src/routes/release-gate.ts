@@ -40,9 +40,12 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
     try {
       if (!repository) { const failure = error(request.id, "RELEASE_STORE_UNAVAILABLE", "Release storage is not ready.", "DEPENDENCY", 503, "NOT_CHARGED", true); return reply.code(failure.status).send(failure.body); }
       const manifest = releaseManifestV1Schema.parse(request.body); const target = new URL(manifest.target.endpoint).hostname;
+      const concurrent = await repository.claimDraftConcurrency(target, request.id);
+      if (!concurrent) { const failure = error(request.id, "DRAFT_CONCURRENCY_LIMITED", "Too many draft requests are active for this target. Try again shortly.", "RATE_LIMIT", 429, "NOT_CHARGED", true); return reply.code(failure.status).send(failure.body); }
       const checks = await Promise.all([repository.reserveRateLimit("draft_ip_day", request.ip, config.FREE_DRAFT_IP_DAILY), repository.reserveRateLimit("draft_target_day", target, config.FREE_DRAFT_TARGET_DAILY), repository.reserveRateLimit("draft_global_day", "global", config.FREE_DRAFT_GLOBAL_DAILY)]);
-      if (checks.some((check) => !check.allowed)) { const failure = error(request.id, "DRAFT_RATE_LIMITED", "The free manifest-draft limit has been reached. Try again after the daily reset.", "RATE_LIMIT", 429); return reply.code(failure.status).send(failure.body); }
+      if (checks.some((check) => !check.allowed)) { await repository.releaseDraftConcurrency(target, request.id); const failure = error(request.id, "DRAFT_RATE_LIMITED", "The free manifest-draft limit has been reached. Try again after the daily reset.", "RATE_LIMIT", 429); return reply.code(failure.status).send(failure.body); }
       const digest = manifestHash(manifest); await repository.storeManifest(manifest, digest);
+      await repository.releaseDraftConcurrency(target, request.id);
       return { schema_version: "preflight.release-manifest-draft.v1", complete: true, normalized_manifest: manifest, manifest_hash: digest, verdict: null };
     } catch (cause) {
       if (cause instanceof ZodError) { const failure = error(request.id, "MANIFEST_INVALID", "Release Manifest validation failed.", "VALIDATION", 400); return reply.code(failure.status).send({ ...failure.body, error: { ...failure.body.error, details: { issues: cause.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })) } } }); }
@@ -75,11 +78,12 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
       const verified = await gateway.verify(payload, matched);
       if (!verified.valid) { await repository.updatePayment(paymentId, "REJECTED", "NOT_STARTED", undefined, undefined, false, "PAYMENT_INVALID"); await repository.transition(run.id, ["REQUEST_VALIDATED"], "PAYMENT_FAILED"); const failure = error(request.id, "PAYMENT_INVALID", "Payment verification failed.", "PAYMENT", 402); return reply.code(failure.status).send(failure.body); }
       const payerKey = verified.payer ?? payer(payload) ?? "unknown";
-      const [payerLimit, targetLimit, concurrency] = await Promise.all([
-        repository.reserveRateLimit("paid_payer_minute", payerKey, 30, "minute"), repository.reserveRateLimit("paid_target_hour", parsed.manifest.target.endpoint, 10, "hour"), repository.concurrencyAvailable(parsed.manifest.target.endpoint)
+      const [payerLimit, targetLimit] = await Promise.all([
+        repository.reserveRateLimit("paid_payer_minute", payerKey, 30, "minute"), repository.reserveRateLimit("paid_target_hour", parsed.manifest.target.endpoint, 10, "hour")
       ]);
-      if (!payerLimit.allowed || !targetLimit.allowed || !concurrency) { await repository.updatePayment(paymentId, "VERIFIED", "NOT_STARTED", undefined, undefined, false, "PAID_RATE_LIMITED"); const failure = error(request.id, "PAID_RATE_LIMITED", "Paid verification capacity is currently limited; no settlement occurred.", "RATE_LIMIT", 429); return reply.code(failure.status).send(failure.body); }
-      await repository.updatePayment(paymentId, "VERIFIED", "NOT_STARTED"); await repository.transition(run.id, ["REQUEST_VALIDATED"], "PAYMENT_VERIFIED"); await repository.transition(run.id, ["PAYMENT_VERIFIED"], "PROBING");
+      const concurrent = payerLimit.allowed && targetLimit.allowed && await repository.claimPaidConcurrency(run.id, parsed.manifest.target.endpoint);
+      if (!concurrent) { await repository.updatePayment(paymentId, "VERIFIED", "NOT_STARTED", undefined, undefined, false, "PAID_RATE_LIMITED"); const failure = error(request.id, "PAID_RATE_LIMITED", "Paid verification capacity is currently limited; no settlement occurred.", "RATE_LIMIT", 429); return reply.code(failure.status).send(failure.body); }
+      await repository.updatePayment(paymentId, "VERIFIED", "NOT_STARTED"); await repository.transition(run.id, ["PAYMENT_VERIFIED"], "PROBING");
       const artifacts = [];
       try { artifacts.push(await transportAdapter(egress, parsed.manifest.target.endpoint, parsed.probe_input ?? {})); } catch (cause) { if (!(cause instanceof EgressPolicyError)) throw cause; }
       try { artifacts.push(await x402Adapter(egress, parsed.manifest.target.endpoint, parsed.probe_input ?? {})); } catch (cause) { if (!(cause instanceof EgressPolicyError)) throw cause; }
