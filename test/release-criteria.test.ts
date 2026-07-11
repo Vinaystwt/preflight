@@ -30,6 +30,10 @@ describe("deterministic Release Gate aggregation", () => {
     const mcpManifest = { ...manifestFixture, target: { ...manifestFixture.target, interface_mode: "MCP_PLUS_X402_HTTP" as const, mcp_url: "https://example.com/mcp" } };
     expect(aggregateDecision(evaluateCriteria(mcpManifest, []))).toBe("UNKNOWN");
   });
+  it("treats a route-form X402 service as a matching non-MCP interface", () => {
+    const artifacts = [evidenceArtifact("TRANSPORT", manifestFixture.target.endpoint, { status: 402, final_url: manifestFixture.target.endpoint, redirects: [], latency_ms: 1, resolved_addresses: ["93.184.216.34"] })];
+    expect(evaluateCriteria(manifestFixture, artifacts).find((item) => item.code === "INTERFACE_MODE")?.state).toBe("MATCH");
+  });
   it("wrong x402 amount, asset, network and payTo are explicit contradictions", () => {
     const artifacts = [
       evidenceArtifact("TRANSPORT", manifestFixture.target.endpoint, { status: 402, final_url: manifestFixture.target.endpoint, redirects: [], latency_ms: 1, resolved_addresses: ["93.184.216.34"] }),

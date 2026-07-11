@@ -54,7 +54,9 @@ function stateFor(definition: CriterionDefinition, expected: JsonValue | undefin
 export function evaluateCriteria(manifest: ReleaseManifestV1, artifacts: EvidenceArtifact[]): CriterionResult[] {
   const byKind = new Map(artifacts.map((artifact) => [artifact.kind, artifact]));
   return criterionRegistry.map((definition) => {
-    const expected = expectedAt(manifest, definition.path); const artifact = byKind.get(definition.evidence); const evaluated = stateFor(definition, expected, artifact, manifest);
+    const expected = expectedAt(manifest, definition.path);
+    const artifact = definition.code === "INTERFACE_MODE" && !manifest.target.interface_mode.startsWith("MCP_PLUS_") ? byKind.get("TRANSPORT") : byKind.get(definition.evidence);
+    const evaluated = stateFor(definition, expected, artifact, manifest);
     return { code: definition.code, group: definition.group, state: evaluated.state, mandatory: definition.mandatory, expected, observed: evaluated.observed,
       provenance: artifact ? ["OPERATOR_SUPPLIED", "OBSERVED", "DERIVED"] : ["OPERATOR_SUPPLIED", "UNAVAILABLE"], comparison_rule: definition.comparison_rule,
       consequence: evaluated.state === "CONTRADICTION" ? definition.consequence : undefined, remediation: evaluated.state === "CONTRADICTION" || evaluated.state === "UNKNOWN" ? definition.remediation : undefined,
