@@ -1,0 +1,15 @@
+{
+  "status": 402,
+  "challenge": {
+    "x402Version": 2,
+    "resource": { "url": "https://missing-field.example/run", "mimeType": "application/json" },
+    "accepts": [{
+      "scheme": "exact",
+      "network": "eip155:196",
+      "asset": "0x779ded0c9e1022225f8e0630b35a9b54be713736",
+      "amount": "100000",
+      "payTo": "0x7bb9c4d6e06b9dee783eb31ff73d9345803efbd2",
+      "maxTimeoutSeconds": 300
+    }]
+  }
+}
