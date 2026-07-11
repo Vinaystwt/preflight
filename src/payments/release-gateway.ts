@@ -1,7 +1,7 @@
 import { OKXFacilitatorClient } from "@okxweb3/x402-core";
 import { x402ResourceServer } from "@okxweb3/x402-core/server";
 import { decodePaymentSignatureHeader, encodePaymentRequiredHeader, encodePaymentResponseHeader } from "@okxweb3/x402-core/http";
-import type { PaymentPayload, PaymentRequirements, SettleResponse } from "@okxweb3/x402-core/types";
+import type { PaymentPayload, PaymentRequirements, SettleResponse, SettleStatusResponse } from "@okxweb3/x402-core/types";
 import { ExactEvmScheme } from "@okxweb3/x402-evm/exact/server";
 import type { Config } from "../config.js";
 
@@ -11,6 +11,7 @@ export interface ReleasePaymentGateway {
   decode(signature: string): PaymentPayload;
   verify(payload: PaymentPayload, requirements: PaymentRequirements): Promise<{ valid: boolean; payer?: string }>;
   settle(payload: PaymentPayload, requirements: PaymentRequirements): Promise<SettleResponse>;
+  settlementStatus(reference: string): Promise<SettleStatusResponse>;
   responseHeader(result: SettleResponse): string;
   match(requirements: PaymentRequirements[], payload: PaymentPayload): PaymentRequirements | undefined;
 }
@@ -30,6 +31,7 @@ export function createReleasePaymentGateway(config: Config): ReleasePaymentGatew
     decode: decodePaymentSignatureHeader,
     async verify(payload, requirements) { const result = await server.verifyPayment(payload, requirements); return { valid: result.isValid, payer: result.payer }; },
     settle: (payload, requirements) => server.settlePayment(payload, requirements),
+    settlementStatus: (reference) => facilitator.getSettleStatus(reference),
     responseHeader: encodePaymentResponseHeader,
     match: (requirements, payload) => server.findMatchingRequirements(requirements, payload)
   };

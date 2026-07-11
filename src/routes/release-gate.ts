@@ -30,7 +30,15 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
   const egress = options.egress ?? new SafeEgressClient();
   if (repository) {
     state.reconciliation = "idle";
-    void repository.recoverSettledUnpublished().catch((cause) => { state.reconciliation = "error"; app.log.error({ event: "release_reconciliation_failed", err: cause }, "release reconciliation failed"); });
+    void (async () => {
+      if (gateway) {
+        for (const item of await repository.ambiguousSettlements()) {
+          const settlement = await gateway.settlementStatus(item.reference);
+          if (settlement.status === "success") await repository.reconcileConfirmedSettlement(item.paymentId, item.runId, item.reference);
+        }
+      }
+      await repository.recoverSettledUnpublished();
+    })().catch((cause) => { state.reconciliation = "error"; app.log.error({ event: "release_reconciliation_failed", err: cause }, "release reconciliation failed"); });
   }
 
   app.get("/api/v1/service", async () => ({ schema_version: "preflight.service.v1", service: "verify_release", purpose: "Compare an operator-confirmed release manifest with observable production behavior.", price_usdt: config.PRICE_VERIFY_RELEASE, network: config.RELEASE_PAYMENT_NETWORK, asset: config.RELEASE_PAYMENT_ASSET, endpoint: `https://${config.PUBLIC_DOMAIN}/api/v1/verify-release`, contracts: "/api/v1/contracts/release-manifest/v1", decisions: ["RELEASE", "BLOCK", "UNKNOWN"], limitations: ["Public HTTPS only", "No target payment", "No security or listing-approval guarantee"] }));

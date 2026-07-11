@@ -23,6 +23,7 @@ function gateway(overrides: Partial<ReleasePaymentGateway> = {}): ReleasePayment
     requirements: vi.fn(async () => [requirement] as never), challenge: vi.fn(async () => Buffer.from(JSON.stringify(challenge)).toString("base64")),
     decode: vi.fn(() => paymentPayload as never), match: vi.fn(() => requirement as never), verify: vi.fn(async () => ({ valid: true, payer: paymentPayload.payload.authorization.from })),
     settle: vi.fn(async () => ({ success: true, status: "success", transaction: "0xsettled", network: requirement.network, payer: paymentPayload.payload.authorization.from } as never)),
+    settlementStatus: vi.fn(async () => ({ status: "success", transaction: "0xsettled" } as never)),
     responseHeader: vi.fn(() => "settled-header"), ...overrides
   };
 }

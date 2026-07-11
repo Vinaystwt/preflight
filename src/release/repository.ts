@@ -117,5 +117,18 @@ export class ReleaseRepository {
     const rows = await this.sql<Array<{ id: string }>>`SELECT id FROM verification_runs WHERE lifecycle_status='PAYMENT_SETTLED' AND report IS NOT NULL AND published_at IS NULL FOR UPDATE SKIP LOCKED`;
     for (const row of rows) await this.publish(row.id); return rows.length;
   }
+  async ambiguousSettlements(): Promise<Array<{ paymentId: string; runId: string; reference: string }>> {
+    return this.sql<Array<{ paymentId: string; runId: string; reference: string }>>`
+      SELECT pa.id AS "paymentId", pa.run_id AS "runId", pa.settlement_reference AS reference
+      FROM payment_attempts pa JOIN verification_runs vr ON vr.id = pa.run_id
+      WHERE pa.settlement_reference IS NOT NULL AND pa.settlement_state IN ('pending', 'timeout') AND vr.lifecycle_status = 'SETTLEMENT_PENDING'`;
+  }
+  async reconcileConfirmedSettlement(paymentId: string, runId: string, reference: string): Promise<void> {
+    await this.sql.begin(async (transaction) => {
+      await transaction`UPDATE payment_attempts SET settlement_state='SETTLED', transaction_hash=${reference}, safe_error_code=null, updated_at=now() WHERE id=${paymentId} AND settlement_reference=${reference}`;
+      const transitioned = await transaction`UPDATE verification_runs SET lifecycle_status='PAYMENT_SETTLED', updated_at=now() WHERE id=${runId} AND lifecycle_status='SETTLEMENT_PENDING' RETURNING id`;
+      if (transitioned.length) await transaction`INSERT INTO audit_events (run_id, payment_attempt_id, event_type, safe_metadata) VALUES (${runId}, ${paymentId}, 'PAYMENT_SETTLED_RECONCILED', ${transaction.json({ settlement_reference: reference })})`;
+    });
+  }
   async audit(runId: string, event: string, metadata: Record<string, JsonValue>): Promise<void> { await this.sql`INSERT INTO audit_events (run_id, event_type, safe_metadata) VALUES (${runId}, ${event}, ${this.sql.json(metadata)})`; }
 }
