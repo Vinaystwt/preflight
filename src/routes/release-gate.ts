@@ -21,6 +21,7 @@ function payer(payload: unknown): string | undefined { const value = (payload as
 function complete(report: Omit<VerifyReleaseResponseV1, "report_access">, token: string, config: Config): VerifyReleaseResponseV1 {
   return { ...report, report_access: { report_url: `https://${config.PUBLIC_DOMAIN}/api/v1/reports/${report.report_id}`, access_token: token } };
 }
+const delay = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
 export interface ReleaseRouteOptions { gateway?: ReleasePaymentGateway | null; egress?: SafeEgressClient }
 export function mountReleaseGate(app: FastifyInstance, config: Config, database: Database | null, options: ReleaseRouteOptions = {}): { reconciliation: "disabled" | "idle" | "error" } {
@@ -103,7 +104,12 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
         manifest: { schema_version: parsed.manifest.schema_version, manifest_hash: digest, canonical_manifest: parsed.manifest }, runtime_snapshot: { snapshot_hash: snapshotHash, captured_at: capturedAt, requested_url: parsed.manifest.target.endpoint, final_url: (artifacts.find((artifact) => artifact.kind === "TRANSPORT")?.normalized as { final_url?: string } | undefined)?.final_url, build_identifier: config.BUILD_SHA }, policy_version: POLICY_VERSION,
         summary: { matched: criteria.filter((item) => item.state === "MATCH").length, contradictions: criteria.filter((item) => item.state === "CONTRADICTION").length, unknown: criteria.filter((item) => item.state === "UNKNOWN").length, not_applicable: criteria.filter((item) => item.state === "NOT_APPLICABLE").length }, criterion_groups: group(criteria), limitations: ["Observable public runtime only", "No target payment", "Decision applies only to this runtime snapshot"], generated_at: capturedAt, report_expires_at: expiresAt };
       await repository.prepareReport(run.id, report, snapshot, snapshotHash); await repository.transition(run.id, ["REPORT_PREPARED"], "SETTLEMENT_PENDING"); await repository.updatePayment(paymentId, "VERIFIED", "PENDING");
-      const settled = await gateway.settle(payload, matched);
+      let settled = await gateway.settle(payload, matched);
+      for (let attempt = 0; !settled.success && settled.transaction && attempt < 8; attempt += 1) {
+        await delay(1_500);
+        const status = await gateway.settlementStatus(settled.transaction);
+        if (status.status === "success") settled = { ...settled, success: true, status: "success", transaction: status.transaction ?? settled.transaction };
+      }
       if (!settled.success || settled.status !== "success") { await repository.updatePayment(paymentId, "VERIFIED", settled.status ?? "UNKNOWN", settled.transaction, settled.transaction, false, "SETTLEMENT_NOT_CONFIRMED"); const failure = error(request.id, "SETTLEMENT_NOT_CONFIRMED", "Settlement is not confirmed; no report was published.", "PAYMENT", 503, "UNKNOWN", true); return reply.code(failure.status).send(failure.body); }
       settlementConfirmed = true; await repository.updatePayment(paymentId, "VERIFIED", "SETTLED", settled.transaction, settled.transaction); await repository.transition(run.id, ["SETTLEMENT_PENDING"], "PAYMENT_SETTLED", { settlement_reference: settled.transaction ?? "confirmed" });
       const token = await repository.publish(run.id); reply.header("PAYMENT-RESPONSE", gateway.responseHeader(settled)); return complete(report, token, config);
