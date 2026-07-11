@@ -19,8 +19,13 @@ export function createReleasePaymentGateway(config: Config): ReleasePaymentGatew
   if (!config.OPERATOR_WALLET || !config.OKX_API_KEY || !config.OKX_SECRET_KEY || !config.OKX_PASSPHRASE) return null;
   const facilitator = new OKXFacilitatorClient({ apiKey: config.OKX_API_KEY, secretKey: config.OKX_SECRET_KEY, passphrase: config.OKX_PASSPHRASE, syncSettle: true });
   const server = new x402ResourceServer(facilitator).register(config.RELEASE_PAYMENT_NETWORK as `eip155:${string}`, new ExactEvmScheme());
+  let initialized: Promise<void> | null = null;
+  const ensureInitialized = () => initialized ??= server.initialize();
   return {
-    requirements: (resourceUrl) => server.buildPaymentRequirementsFromOptions([{ scheme: "exact", network: config.RELEASE_PAYMENT_NETWORK as `eip155:${string}`, payTo: config.OPERATOR_WALLET!, price: `$${config.PRICE_VERIFY_RELEASE}`, maxTimeoutSeconds: 300 }], { resourceUrl }),
+    async requirements(resourceUrl) {
+      await ensureInitialized();
+      return server.buildPaymentRequirementsFromOptions([{ scheme: "exact", network: config.RELEASE_PAYMENT_NETWORK as `eip155:${string}`, payTo: config.OPERATOR_WALLET!, price: `$${config.PRICE_VERIFY_RELEASE}`, maxTimeoutSeconds: 300 }], { resourceUrl });
+    },
     async challenge(requirements, resourceUrl) { return encodePaymentRequiredHeader(await server.createPaymentRequiredResponse(requirements, { url: resourceUrl, description: "PreFlight Agent Service Release Gate", mimeType: "application/json" })); },
     decode: decodePaymentSignatureHeader,
     async verify(payload, requirements) { const result = await server.verifyPayment(payload, requirements); return { valid: result.isValid, payer: result.payer }; },
