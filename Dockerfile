@@ -17,6 +17,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 COPY src/db/schema.sql ./dist/db/schema.sql
+COPY src/db/migrations ./dist/db/migrations
 EXPOSE 3000
 USER node
 CMD ["node", "dist/server.js"]
