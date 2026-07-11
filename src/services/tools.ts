@@ -2,7 +2,6 @@ import { z } from "zod";
 import type { Config } from "../config.js";
 import type { Database } from "../db/client.js";
 import { buildReport } from "../engine/report.js";
-import { createPaymentBuyer } from "../payments/buyer.js";
 import { defaultServices, preflightInput, validatePreflightInput, type PreflightInput, type PreflightServices } from "../preflight.js";
 import type { Finding, ProbeResult, ReportEnvelope } from "../types.js";
 
@@ -20,7 +19,7 @@ export interface DeepPaidCallResult {
 }
 
 export interface Stage2Services extends PreflightServices {
-  paidCall(privateKey: `0x${string}`, target: string, body: unknown): Promise<DeepPaidCallResult>;
+  paidCall(target: string, body: unknown): Promise<DeepPaidCallResult>;
 }
 
 export interface OutboundPaymentAudit {
@@ -36,22 +35,8 @@ export interface OutboundPaymentAudit {
 
 export const defaultStage2Services: Stage2Services = {
   ...defaultServices,
-  async paidCall(privateKey, target, body) {
-    const buyer = createPaymentBuyer(privateKey);
-    const started = performance.now();
-    const paid = await buyer.postText(target, body);
-    let value: unknown = paid.text;
-    let parseable = false;
-    try { value = JSON.parse(paid.text); parseable = true; } catch { /* Evidence retains the response text. */ }
-    return {
-      ok: paid.response.ok,
-      status: paid.response.status,
-      body: value,
-      parseable,
-      payer: buyer.address,
-      latencyMs: Math.round(performance.now() - started),
-      receipt: paid.receipt
-    };
+  async paidCall() {
+    throw new Error("Legacy outbound payment is archived and cannot execute.");
   }
 };
 
@@ -112,13 +97,9 @@ export async function runDeepCheck(
     if (!reservationId) {
       options.audit?.({ event: "x402_outbound_blocked", tool: options.tool ?? "deep_check", target: validated.target, price_usdt: amountUsdt, settle_ref: null, settle_status: "cap_exceeded", payer: null, owner_attestation: true });
       modules.push(deepFinding("DEEP_CHECK_CAP_EXCEEDED", `The ${amountUsdt} USDT outbound call would exceed a persisted daily cap.`, "Wait for the 24-hour spend window to reset or raise the configured cap."));
-    } else if (!config.DEEP_CHECK_BUYER_PRIVATE_KEY) {
-      await database.completeSpend(reservationId, "failed", null);
-      options.audit?.({ event: "x402_outbound_failed", tool: options.tool ?? "deep_check", target: validated.target, price_usdt: amountUsdt, settle_ref: null, settle_status: "buyer_unconfigured", payer: null, owner_attestation: true });
-      modules.push(deepFinding("DEEP_CALL_FAILED", "Outbound buyer wallet is not configured.", "Set DEEP_CHECK_BUYER_PRIVATE_KEY in the service environment."));
     } else {
       try {
-        paid = await services.paidCall(config.DEEP_CHECK_BUYER_PRIVATE_KEY as `0x${string}`, validated.target, { target: validated.target, mcp_url: validated.mcp_url, expected: validated.expected });
+        paid = await services.paidCall(validated.target, { target: validated.target, mcp_url: validated.mcp_url, expected: validated.expected });
         const settleRef = paid.receipt?.transaction ?? null;
         options.audit?.({ event: paid.ok ? "x402_outbound_complete" : "x402_outbound_failed", tool: options.tool ?? "deep_check", target: validated.target, price_usdt: amountUsdt, settle_ref: settleRef,
           settle_status: paid.receipt?.status ?? (paid.ok ? "success" : "failed"), payer: paid.payer, owner_attestation: true });

@@ -11,9 +11,8 @@ const environment = z.object({
   OKX_API_KEY: z.string().min(1).optional(),
   OKX_SECRET_KEY: z.string().min(1).optional(),
   OKX_PASSPHRASE: z.string().min(1).optional(),
-  SELFTEST_BUYER_PRIVATE_KEY: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),
-  DEEP_CHECK_BUYER_PRIVATE_KEY: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),
-  BUILD_SHA: z.string().default("dev"),
+  BUILD_SHA: z.string().min(7).default("unknown"),
+  LEGACY_ROUTES_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(30),
   RATE_LIMIT_WINDOW: z.string().default("1 minute"),
   PAYER_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(30),
@@ -37,16 +36,17 @@ const environment = z.object({
   MONITOR_CONCURRENCY: z.coerce.number().int().positive().max(10).default(3),
   PLAYGROUND_PER_IP_DAILY: z.coerce.number().int().positive().default(3),
   PLAYGROUND_GLOBAL_DAILY: z.coerce.number().int().positive().default(200),
-  X_LAYER_RPC_URL: z.string().url().default("https://xlayerrpc.okx.com"),
-  DEPLOYER_PRIVATE_KEY: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),
-  ATTESTATION_CONTRACT_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional(),
-  ATTESTATION_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(5_000)
+  X_LAYER_RPC_URL: z.string().url().default("https://xlayerrpc.okx.com")
 });
 
 export type Config = z.infer<typeof environment>;
 
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
-  return environment.parse(source);
+  const config = environment.parse({ ...source, BUILD_SHA: source.BUILD_SHA ?? source.RAILWAY_GIT_COMMIT_SHA });
+  if (config.NODE_ENV === "production" && ["dev", "unknown"].includes(config.BUILD_SHA.toLowerCase())) {
+    throw new Error("Production requires an immutable BUILD_SHA");
+  }
+  return config;
 }
 
 export function hasPaymentConfig(config: Config): boolean {

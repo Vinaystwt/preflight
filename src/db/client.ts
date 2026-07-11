@@ -2,7 +2,6 @@ import postgres, { type Sql } from "postgres";
 import { ulid } from "ulid";
 import type { Config } from "../config.js";
 import type { ReportEnvelope } from "../types.js";
-import { canonicalReportHash } from "../chain/attest.js";
 import type { MarketScanResult } from "../scanner.js";
 
 /** Postgres parameters may never be undefined. Preserve JSON shape by normalizing recursively. */
@@ -66,12 +65,6 @@ export function createDatabase(config: Config): Database | null {
         INSERT INTO checks (id, target_id, kind, expected, results, verdict, score, findings, attestation_tx, created_at)
         VALUES (${report.report_id}, ${id}, ${report.tool}, ${sql.json(normalizeUndefined(expected))}, ${sql.json(normalizeUndefined(results))},
           ${report.verdict}, ${report.score}, ${sql.json(normalizeUndefined(report.findings))}, ${report.attestation_tx}, ${new Date(report.generated_at)})`;
-      if (report.tool !== "playground_check") {
-        await sql`
-          INSERT INTO pending_attestations (id, check_id, report_hash)
-          VALUES (${ulid()}, ${report.report_id}, ${canonicalReportHash(report)})
-          ON CONFLICT (check_id) DO NOTHING`;
-      }
     },
     async getReport(id) {
       const rows = await sql<{ id: string; kind: string; endpoint_url: string; verdict: ReportEnvelope["verdict"]; score: number; findings: ReportEnvelope["findings"]; attestation_tx: string | null; created_at: Date }[]>`

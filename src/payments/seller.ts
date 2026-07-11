@@ -77,7 +77,7 @@ function createWindowLimiter(max: number, windowMs: number) {
 }
 
 /** Official Fastify middleware with async settlement and non-blocking audit persistence. */
-export function mountSellerPayments(app: FastifyInstance, config: Config, database: Database | null): SellerPaymentState {
+export function mountSellerPayments(app: FastifyInstance, config: Config, database: Database | null, mountLegacyRoutes = true): SellerPaymentState {
   const state: SellerPaymentState = { enabled: false, listenerStatus: "disabled" };
   if (!hasPaymentConfig(config)) return state;
   state.enabled = true;
@@ -145,6 +145,6 @@ export function mountSellerPayments(app: FastifyInstance, config: Config, databa
     description: service.description,
     mimeType: "application/json"
   }])) as RoutesConfig;
-  paymentMiddleware(app, routes, server);
+  if (mountLegacyRoutes) paymentMiddleware(app, routes, server);
   return state;
 }

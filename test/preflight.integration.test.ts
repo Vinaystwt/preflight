@@ -59,7 +59,7 @@ describe("full conformance fixtures", () => {
 });
 
 describe("PreFlight dogfood", () => {
-  it("keeps MCP discovery-only and scores its own surfaces GO", async () => {
+  it("advertises only the Release Gate discovery tool", async () => {
     const { app } = await buildServer({ NODE_ENV: "test", PUBLIC_DOMAIN: "api.usepreflight.xyz" });
     try {
       const headers = { "content-type": "application/json", accept: "application/json, text/event-stream", "mcp-protocol-version": "2025-03-26" };
@@ -67,11 +67,10 @@ describe("PreFlight dogfood", () => {
       const listPayload = listed.json() as Record<string, unknown>;
       expect(evaluateMcpToolsPayload(listPayload)).toEqual([]);
       const toolNames = ((listPayload.result as { tools: Array<{ name: string }> }).tools).map((tool) => tool.name);
-      expect(toolNames).toEqual(["service_info", "check_endpoint", "check_x402", "run_preflight", "deep_check", "preflight_certified", "watch_endpoint", "get_watch_report"]);
-      const called = await app.inject({ method: "POST", url: "/mcp", headers, payload: { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "run_preflight", arguments: { target: "https://example.com" } } } });
+      expect(toolNames).toEqual(["preflight_service_info"]);
+      const called = await app.inject({ method: "POST", url: "/mcp", headers, payload: { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "preflight_service_info", arguments: {} } } });
       const pointer = (called.json() as { result: { structuredContent: Record<string, unknown> } }).result.structuredContent;
-      expect(pointer).toEqual({ paid: true, price_usdt: 0.1, endpoint: "POST https://api.usepreflight.xyz/api/v1/run_preflight", how: "x402 v2: expect 402 + PAYMENT-REQUIRED, replay with PAYMENT-SIGNATURE" });
-      expect(pointer).not.toHaveProperty("report_id");
+      expect(pointer).toMatchObject({ service: "verify_release", status: "contract_pending", price_usdt: "0.10" });
 
       const golden = await fixture("golden");
       const services: PreflightServices = {
@@ -86,13 +85,13 @@ describe("PreFlight dogfood", () => {
     } finally { await app.close(); }
   });
 
-  it("returns typed 400 errors for non-HTTPS and private targets", async () => {
+  it("returns typed 410 before parsing any legacy route input", async () => {
     const { app } = await buildServer({ NODE_ENV: "test" });
     try {
       for (const target of ["http://example.com/run", "https://127.0.0.1/run"]) {
         const response = await app.inject({ method: "POST", url: "/api/v1/run_preflight", payload: { target } });
-        expect(response.statusCode).toBe(400);
-        expect(response.json()).toMatchObject({ error: { code: "TARGET_REJECTED" } });
+        expect(response.statusCode).toBe(410);
+        expect(response.json()).toMatchObject({ error: { code: "LEGACY_ROUTE_GONE", charge_status: "NOT_CHARGED" } });
       }
     } finally { await app.close(); }
   });
@@ -139,19 +138,19 @@ describe("Stage 2 paid tool behavior", () => {
       receipt: { success: true, transaction: "0xtest", status: "success", network: "eip155:196" } }));
     const database = databaseStub();
     const services: Stage2Services = { ...servicesFor(golden), paidCall };
-    const config = loadConfig({ DEEP_CHECK_BUYER_PRIVATE_KEY: `0x${"11".repeat(32)}` });
+    const config = loadConfig({});
     const report = await runDeepCheck({ target: "https://golden.example/run", owner_attestation: true }, database, config, services);
     expect(report.verdict).toBe("GO");
     expect(paidCall).toHaveBeenCalledTimes(1);
     expect(database.recordCall).toHaveBeenCalledWith(expect.objectContaining({ direction: "out", priceUsdt: "0.1", ownerAttestation: true, settleRef: "0xtest" }));
   });
 
-  it("returns typed 400 when a paid deep route omits owner attestation", async () => {
+  it("returns typed 410 for the retired deep-check route", async () => {
     const { app } = await buildServer({ NODE_ENV: "test" });
     try {
       const response = await app.inject({ method: "POST", url: "/api/v1/deep_check", payload: { target: "https://example.com/run" } });
-      expect(response.statusCode).toBe(400);
-      expect(response.json()).toMatchObject({ error: { code: "OWNER_ATTESTATION_REQUIRED" } });
+      expect(response.statusCode).toBe(410);
+      expect(response.json()).toMatchObject({ error: { code: "LEGACY_ROUTE_GONE" } });
     } finally { await app.close(); }
   });
 });
