@@ -63,7 +63,10 @@ async function nodeRequest(url: URL, pinnedAddress: string, family: 4 | 6, body:
   return new Promise((resolve, reject) => {
     const request = httpsRequest(url, {
       method: "POST", signal, servername: url.hostname, headers: { "content-type": "application/json", "content-length": body.length, "user-agent": options.userAgent, "accept-encoding": "gzip, deflate, br" },
-      lookup: (_hostname, _options, callback) => callback(null, pinnedAddress, family)
+      lookup: (_hostname, lookupOptions, callback) => {
+        if (typeof lookupOptions === "object" && lookupOptions.all) return callback(null, [{ address: pinnedAddress, family }]);
+        return callback(null, pinnedAddress, family);
+      }
     }, (response) => {
       const chunks: Buffer[] = []; let size = 0;
       response.on("data", (chunk: Buffer) => { size += chunk.length; if (size > options.maxCompressedBytes) request.destroy(new EgressPolicyError("RESPONSE_TOO_LARGE", "Target response exceeded the compressed byte limit")); else chunks.push(chunk); });
