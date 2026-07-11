@@ -17,7 +17,12 @@ const endpoint = new URL("/api/v1/verify-release", base); const idempotency = ra
 const draft = await fetch(new URL("/api/v1/release-manifests/draft", base), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(manifest) }); gates.push({ gate: "draft", result: draft.ok ? "PASS" : "FAIL", detail: `HTTP ${draft.status}` });
 const unpaid = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": `${idempotency}-unpaid` }, body: JSON.stringify(request) }); gates.push({ gate: "unpaid challenge", result: unpaid.status === 402 && Boolean(unpaid.headers.get("payment-required")) ? "PASS" : "FAIL", detail: `HTTP ${unpaid.status}` });
 const account = privateKeyToAccount(signerValue as `0x${string}`); const publicClient = createPublicClient({ chain: xLayer, transport: http() }); let capturedPaymentSignature: string | null = null;
-const capturedFetch: typeof fetch = async (input, init) => { const signature = new Headers(init?.headers).get("payment-signature"); if (signature) capturedPaymentSignature = signature; return fetch(input, init); };
+const capturedFetch: typeof fetch = async (input, init) => {
+  const inputHeaders = input instanceof Request ? input.headers : undefined;
+  const signature = new Headers(init?.headers ?? inputHeaders).get("payment-signature");
+  if (signature) capturedPaymentSignature = signature;
+  return fetch(input, init);
+};
 const paidFetch = wrapFetchWithPaymentFromConfig(capturedFetch, { schemes: [{ network: "eip155:196", client: new ExactEvmScheme(toClientEvmSigner(account, publicClient)) }] });
 let paid = await paidFetch(endpoint, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": `${idempotency}-paid` }, body: JSON.stringify(request) });
 for (let attempt = 0; [409, 503].includes(paid.status) && attempt < 30; attempt += 1) {
