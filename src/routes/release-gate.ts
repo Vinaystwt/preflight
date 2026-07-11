@@ -24,14 +24,15 @@ function complete(report: Omit<VerifyReleaseResponseV1, "report_access">, token:
 const delay = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
 export interface ReleaseRouteOptions { gateway?: ReleasePaymentGateway | null; egress?: SafeEgressClient }
-export function mountReleaseGate(app: FastifyInstance, config: Config, database: Database | null, options: ReleaseRouteOptions = {}): { reconciliation: "disabled" | "idle" | "error" } {
+export function mountReleaseGate(app: FastifyInstance, config: Config, database: Database | null, options: ReleaseRouteOptions = {}): { reconciliation: "disabled" | "idle" | "error"; stop(): void } {
   const state: { reconciliation: "disabled" | "idle" | "error" } = { reconciliation: "disabled" };
   const repository = database && config.REPORT_TOKEN_SECRET ? new ReleaseRepository(database.sql, config.REPORT_TOKEN_SECRET) : null;
   const gateway = options.gateway === undefined ? createReleasePaymentGateway(config) : options.gateway;
   const egress = options.egress ?? new SafeEgressClient();
+  let reconciliationTimer: NodeJS.Timeout | null = null;
   if (repository) {
     state.reconciliation = "idle";
-    void (async () => {
+    const reconcile = async () => {
       if (gateway) {
         for (const item of await repository.ambiguousSettlements()) {
           const settlement = await gateway.settlementStatus(item.reference);
@@ -39,7 +40,10 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
         }
       }
       await repository.recoverSettledUnpublished();
-    })().catch((cause) => { state.reconciliation = "error"; app.log.error({ event: "release_reconciliation_failed", err: cause }, "release reconciliation failed"); });
+    };
+    void reconcile().catch((cause) => { state.reconciliation = "error"; app.log.error({ event: "release_reconciliation_failed", err: cause }, "release reconciliation failed"); });
+    reconciliationTimer = setInterval(() => { void reconcile().catch((cause) => { state.reconciliation = "error"; app.log.error({ event: "release_reconciliation_failed", err: cause }, "release reconciliation failed"); }); }, 5_000);
+    reconciliationTimer.unref();
   }
 
   app.get("/api/v1/service", async () => ({ schema_version: "preflight.service.v1", service: "verify_release", purpose: "Compare an operator-confirmed release manifest with observable production behavior.", price_usdt: config.PRICE_VERIFY_RELEASE, network: config.RELEASE_PAYMENT_NETWORK, asset: config.RELEASE_PAYMENT_ASSET, endpoint: `https://${config.PUBLIC_DOMAIN}/api/v1/verify-release`, contracts: "/api/v1/contracts/release-manifest/v1", decisions: ["RELEASE", "BLOCK", "UNKNOWN"], limitations: ["Public HTTPS only", "No target payment", "No security or listing-approval guarantee"] }));
@@ -128,5 +132,5 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
     if (run.report_expires_at && run.report_expires_at <= new Date()) return reply.code(410).header("Cache-Control", "private, no-store").send(error(request.id, "REPORT_EXPIRED", "Private report has expired.", "REPORT_ACCESS", 410).body);
     return reply.header("Cache-Control", "private, no-store").send(complete(run.report, token, config));
   });
-  return state;
+  return { ...state, stop() { if (reconciliationTimer) clearInterval(reconciliationTimer); } };
 }

@@ -93,7 +93,7 @@ export async function buildServer(source: NodeJS.ProcessEnv = process.env) {
     return reply.code(ready ? 200 : 503).send({ ...status, ok: ready });
   });
   mountMcp(app, config);
-  app.addHook("onClose", async () => { if (database) await database.close(); });
+  app.addHook("onClose", async () => { releaseGate.stop(); if (database) await database.close(); });
   return { app, config, database };
 }
 
