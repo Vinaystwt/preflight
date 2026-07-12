@@ -33,6 +33,10 @@ const environment = z.object({
   PRICE_VERIFY_RELEASE: price.default("0.10"),
   RELEASE_PAYMENT_NETWORK: z.string().default("eip155:196"),
   RELEASE_PAYMENT_ASSET: z.string().default("0x779ded0c9e1022225f8e0630b35a9b54be713736"),
+  // Comma-separated exact browser origins for the Release Gate frontend.
+  // Keep this exact (rather than a permissive Vercel wildcard) so an
+  // unrelated *.vercel.app deployment cannot read capability-token reports.
+  FRONTEND_ORIGINS: z.string().default("").transform((value) => value.split(",").map((origin) => origin.trim()).filter(Boolean)),
   REPORT_TOKEN_SECRET: z.string().min(32).optional(),
   REPORT_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
   FREE_DRAFT_IP_DAILY: z.coerce.number().int().positive().default(5),

@@ -44,7 +44,7 @@ function mountLegacyGone(app: FastifyInstance): void {
 export async function buildServer(source: NodeJS.ProcessEnv = process.env) {
   const config = loadConfig(source);
   const app = Fastify({ trustProxy: true, logger: { level: source.LOG_LEVEL ?? "info" } });
-  mountPublicCors(app);
+  mountPublicCors(app, config.FRONTEND_ORIGINS);
   const database = createDatabase(config);
   const allowTarget = createTargetLimiter(config.TARGET_RATE_LIMIT_PER_HOUR);
   await app.register(rateLimit, { max: config.RATE_LIMIT_MAX, timeWindow: config.RATE_LIMIT_WINDOW });

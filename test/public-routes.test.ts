@@ -45,7 +45,7 @@ describe("public routes", () => {
 
   it("scopes CORS to approved origins and public routes", async () => {
     const app = Fastify();
-    mountPublicCors(app);
+    mountPublicCors(app, ["https://preflight.vercel.app"]);
     app.get("/health", async () => ({ ok: true }));
     app.get("/private", async () => ({ ok: true }));
     const allowed = await app.inject({ method: "GET", url: "/health", headers: { origin: "https://usepreflight.xyz" } });
@@ -57,6 +57,12 @@ describe("public routes", () => {
     const preflight = await app.inject({ method: "OPTIONS", url: "/api/v1/playground_check", headers: { origin: "https://www.usepreflight.xyz" } });
     expect(preflight.statusCode).toBe(204);
     expect(preflight.headers["access-control-allow-origin"]).toBe("https://www.usepreflight.xyz");
+    expect(preflight.headers["access-control-allow-headers"]).toBe("Authorization, Content-Type");
+    const releasePreflight = await app.inject({ method: "OPTIONS", url: "/api/v1/reports/pf_test", headers: { origin: "https://preflight.vercel.app" } });
+    expect(releasePreflight.statusCode).toBe(204);
+    expect(releasePreflight.headers["access-control-allow-origin"]).toBe("https://preflight.vercel.app");
+    const unconfiguredVercel = await app.inject({ method: "OPTIONS", url: "/api/v1/reports/pf_test", headers: { origin: "https://untrusted.vercel.app" } });
+    expect(unconfiguredVercel.headers).not.toHaveProperty("access-control-allow-origin");
     await app.close();
   });
 
