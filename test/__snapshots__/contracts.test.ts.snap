@@ -153,6 +153,477 @@ exports[`Release Gate frozen contracts > freezes JSON Schema snapshots 1`] = `
     ],
     "type": "object",
   },
+  "discovery": {
+    "$defs": {
+      "__schema0": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "number",
+              },
+              {
+                "type": "boolean",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          {
+            "items": {
+              "$ref": "#/$defs/__schema0",
+            },
+            "type": "array",
+          },
+          {
+            "additionalProperties": {
+              "$ref": "#/$defs/__schema0",
+            },
+            "propertyNames": {
+              "type": "string",
+            },
+            "type": "object",
+          },
+        ],
+      },
+      "__schema1": {
+        "additionalProperties": false,
+        "properties": {
+          "additionalProperties": {
+            "type": "boolean",
+          },
+          "const": {
+            "$ref": "#/$defs/__schema0",
+          },
+          "description": {
+            "maxLength": 2000,
+            "type": "string",
+          },
+          "enum": {
+            "items": {
+              "$ref": "#/$defs/__schema0",
+            },
+            "maxItems": 100,
+            "type": "array",
+          },
+          "items": {
+            "$ref": "#/$defs/__schema1",
+          },
+          "maxLength": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer",
+          },
+          "maximum": {
+            "type": "number",
+          },
+          "minLength": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer",
+          },
+          "minimum": {
+            "type": "number",
+          },
+          "properties": {
+            "additionalProperties": {
+              "$ref": "#/$defs/__schema1",
+            },
+            "propertyNames": {
+              "type": "string",
+            },
+            "type": "object",
+          },
+          "required": {
+            "items": {
+              "type": "string",
+            },
+            "maxItems": 100,
+            "type": "array",
+          },
+          "type": {
+            "enum": [
+              "object",
+              "array",
+              "string",
+              "number",
+              "integer",
+              "boolean",
+              "null",
+            ],
+            "type": "string",
+          },
+        },
+        "type": "object",
+      },
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "endpoint": {
+        "format": "uri",
+        "type": "string",
+      },
+      "evidence_refs": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "captured_at": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "type": "string",
+            },
+            "digest": {
+              "pattern": "^sha256:[a-f0-9]{64}$",
+              "type": "string",
+            },
+            "freshness_seconds": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer",
+            },
+            "id": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "source": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "summary": {
+              "minLength": 1,
+              "type": "string",
+            },
+          },
+          "required": [
+            "id",
+            "source",
+            "captured_at",
+            "digest",
+            "summary",
+            "freshness_seconds",
+          ],
+          "type": "object",
+        },
+        "type": "array",
+      },
+      "generated_at": {
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+        "type": "string",
+      },
+      "observed_surface": {
+        "additionalProperties": false,
+        "properties": {
+          "mcp": {
+            "$ref": "#/$defs/__schema0",
+          },
+          "transport": {
+            "$ref": "#/$defs/__schema0",
+          },
+          "x402": {
+            "additionalProperties": false,
+            "properties": {
+              "accepts": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "amount": {
+                          "type": "string",
+                        },
+                        "asset": {
+                          "type": "string",
+                        },
+                        "extra": {
+                          "$ref": "#/$defs/__schema0",
+                        },
+                        "maxTimeoutSeconds": {
+                          "type": "number",
+                        },
+                        "network": {
+                          "type": "string",
+                        },
+                        "payTo": {
+                          "type": "string",
+                        },
+                        "scheme": {
+                          "type": "string",
+                        },
+                      },
+                      "type": "object",
+                    },
+                    "type": "array",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "parse_error": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "status": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer",
+              },
+            },
+            "required": [
+              "parse_error",
+              "accepts",
+            ],
+            "type": "object",
+          },
+        },
+        "required": [
+          "x402",
+        ],
+        "type": "object",
+      },
+      "proposed_manifest": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "additionalProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "confidence": {
+                  "enum": [
+                    "observed",
+                    "inferred",
+                    "unknown",
+                  ],
+                  "type": "string",
+                },
+                "requires_confirmation": {
+                  "type": "boolean",
+                },
+                "source": {
+                  "enum": [
+                    "listing",
+                    "runtime",
+                    "mcp_schema",
+                    "x402_challenge",
+                    "operator",
+                    "inferred",
+                  ],
+                  "type": "string",
+                },
+                "value": {
+                  "$ref": "#/$defs/__schema0",
+                },
+              },
+              "required": [
+                "source",
+                "confidence",
+                "requires_confirmation",
+              ],
+              "type": "object",
+            },
+            "propertyNames": {
+              "type": "string",
+            },
+            "type": "object",
+          },
+          "manifest": {
+            "additionalProperties": false,
+            "properties": {
+              "payment": {
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "mode": {
+                        "const": "FREE",
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "mode",
+                    ],
+                    "type": "object",
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "amount_atomic": {
+                        "pattern": "^\\d+$",
+                        "type": "string",
+                      },
+                      "asset": {
+                        "minLength": 1,
+                        "type": "string",
+                      },
+                      "mode": {
+                        "const": "X402",
+                        "type": "string",
+                      },
+                      "network": {
+                        "minLength": 1,
+                        "type": "string",
+                      },
+                      "pay_to": {
+                        "pattern": "^0x[a-fA-F0-9]{40}$",
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "mode",
+                      "network",
+                      "asset",
+                      "amount_atomic",
+                      "pay_to",
+                    ],
+                    "type": "object",
+                  },
+                ],
+              },
+              "release": {
+                "additionalProperties": false,
+                "properties": {
+                  "release_version": {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "service_name": {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "service_name",
+                ],
+                "type": "object",
+              },
+              "request_contract": {
+                "additionalProperties": false,
+                "properties": {
+                  "content_type": {
+                    "const": "application/json",
+                    "type": "string",
+                  },
+                  "schema": {
+                    "$ref": "#/$defs/__schema1",
+                  },
+                },
+                "required": [
+                  "content_type",
+                  "schema",
+                ],
+                "type": "object",
+              },
+              "response_contract": {
+                "additionalProperties": false,
+                "properties": {
+                  "observable_via": {
+                    "enum": [
+                      "MCP_OUTPUT_SCHEMA",
+                      "FREE_RESPONSE",
+                    ],
+                    "type": "string",
+                  },
+                  "required": {
+                    "type": "boolean",
+                  },
+                  "schema": {
+                    "$ref": "#/$defs/__schema1",
+                  },
+                },
+                "required": [
+                  "required",
+                  "schema",
+                  "observable_via",
+                ],
+                "type": "object",
+              },
+              "schema_version": {
+                "const": "preflight.release-manifest.v1",
+                "type": "string",
+              },
+              "target": {
+                "additionalProperties": false,
+                "properties": {
+                  "endpoint": {
+                    "format": "uri",
+                    "type": "string",
+                  },
+                  "interface_mode": {
+                    "enum": [
+                      "FREE_HTTP",
+                      "X402_HTTP",
+                      "MCP_PLUS_FREE_HTTP",
+                      "MCP_PLUS_X402_HTTP",
+                    ],
+                    "type": "string",
+                  },
+                  "mcp_url": {
+                    "format": "uri",
+                    "type": "string",
+                  },
+                  "method": {
+                    "const": "POST",
+                    "type": "string",
+                  },
+                  "redirect_policy": {
+                    "enum": [
+                      "NONE",
+                      "SAME_ORIGIN",
+                    ],
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "endpoint",
+                  "method",
+                  "interface_mode",
+                ],
+                "type": "object",
+              },
+            },
+            "required": [
+              "schema_version",
+              "release",
+              "target",
+              "payment",
+            ],
+            "type": "object",
+          },
+        },
+        "required": [
+          "fields",
+        ],
+        "type": "object",
+      },
+      "schema_version": {
+        "const": "preflight.discovery.v1",
+        "type": "string",
+      },
+    },
+    "required": [
+      "schema_version",
+      "endpoint",
+      "observed_surface",
+      "proposed_manifest",
+      "evidence_refs",
+      "generated_at",
+    ],
+    "type": "object",
+  },
   "error": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
@@ -220,6 +691,463 @@ exports[`Release Gate frozen contracts > freezes JSON Schema snapshots 1`] = `
     "required": [
       "schema_version",
       "error",
+    ],
+    "type": "object",
+  },
+  "machineReport": {
+    "$defs": {
+      "__schema0": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "number",
+              },
+              {
+                "type": "boolean",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          {
+            "items": {
+              "$ref": "#/$defs/__schema0",
+            },
+            "type": "array",
+          },
+          {
+            "additionalProperties": {
+              "$ref": "#/$defs/__schema0",
+            },
+            "propertyNames": {
+              "type": "string",
+            },
+            "type": "object",
+          },
+        ],
+      },
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "badge_url": {
+        "anyOf": [
+          {
+            "format": "uri",
+            "type": "string",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "blockers": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "comparison_rule": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "consequence": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "evidence_refs": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "captured_at": {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                    "type": "string",
+                  },
+                  "digest": {
+                    "pattern": "^sha256:[a-f0-9]{64}$",
+                    "type": "string",
+                  },
+                  "freshness_seconds": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer",
+                  },
+                  "id": {
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "source": {
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "summary": {
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "id",
+                  "source",
+                  "captured_at",
+                  "digest",
+                  "summary",
+                  "freshness_seconds",
+                ],
+                "type": "object",
+              },
+              "type": "array",
+            },
+            "expected": {
+              "$ref": "#/$defs/__schema0",
+            },
+            "group": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "limitation": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "mandatory": {
+              "type": "boolean",
+            },
+            "observed": {
+              "$ref": "#/$defs/__schema0",
+            },
+            "provenance": {
+              "items": {
+                "enum": [
+                  "OPERATOR_SUPPLIED",
+                  "OBSERVED",
+                  "DERIVED",
+                  "UNAVAILABLE",
+                ],
+                "type": "string",
+              },
+              "minItems": 1,
+              "type": "array",
+            },
+            "remediation": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "state": {
+              "enum": [
+                "MATCH",
+                "CONTRADICTION",
+                "UNKNOWN",
+                "NOT_APPLICABLE",
+              ],
+              "type": "string",
+            },
+          },
+          "required": [
+            "code",
+            "group",
+            "state",
+            "mandatory",
+            "provenance",
+            "comparison_rule",
+            "evidence_refs",
+          ],
+          "type": "object",
+        },
+        "type": "array",
+      },
+      "chain_anchor_tx": {
+        "anyOf": [
+          {
+            "pattern": "^0x[a-fA-F0-9]{64}$",
+            "type": "string",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "criteria": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "comparison_rule": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "consequence": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "evidence_refs": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "captured_at": {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                    "type": "string",
+                  },
+                  "digest": {
+                    "pattern": "^sha256:[a-f0-9]{64}$",
+                    "type": "string",
+                  },
+                  "freshness_seconds": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer",
+                  },
+                  "id": {
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "source": {
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "summary": {
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "id",
+                  "source",
+                  "captured_at",
+                  "digest",
+                  "summary",
+                  "freshness_seconds",
+                ],
+                "type": "object",
+              },
+              "type": "array",
+            },
+            "expected": {
+              "$ref": "#/$defs/__schema0",
+            },
+            "group": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "limitation": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "mandatory": {
+              "type": "boolean",
+            },
+            "observed": {
+              "$ref": "#/$defs/__schema0",
+            },
+            "provenance": {
+              "items": {
+                "enum": [
+                  "OPERATOR_SUPPLIED",
+                  "OBSERVED",
+                  "DERIVED",
+                  "UNAVAILABLE",
+                ],
+                "type": "string",
+              },
+              "minItems": 1,
+              "type": "array",
+            },
+            "remediation": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "state": {
+              "enum": [
+                "MATCH",
+                "CONTRADICTION",
+                "UNKNOWN",
+                "NOT_APPLICABLE",
+              ],
+              "type": "string",
+            },
+          },
+          "required": [
+            "code",
+            "group",
+            "state",
+            "mandatory",
+            "provenance",
+            "comparison_rule",
+            "evidence_refs",
+          ],
+          "type": "object",
+        },
+        "type": "array",
+      },
+      "decision": {
+        "enum": [
+          "RELEASE",
+          "BLOCK",
+          "UNKNOWN",
+        ],
+        "type": "string",
+      },
+      "evidence_refs": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "captured_at": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "type": "string",
+            },
+            "digest": {
+              "pattern": "^sha256:[a-f0-9]{64}$",
+              "type": "string",
+            },
+            "freshness_seconds": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer",
+            },
+            "id": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "source": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "summary": {
+              "minLength": 1,
+              "type": "string",
+            },
+          },
+          "required": [
+            "id",
+            "source",
+            "captured_at",
+            "digest",
+            "summary",
+            "freshness_seconds",
+          ],
+          "type": "object",
+        },
+        "type": "array",
+      },
+      "exit_code": {
+        "anyOf": [
+          {
+            "const": 0,
+            "type": "number",
+          },
+          {
+            "const": 1,
+            "type": "number",
+          },
+          {
+            "const": 2,
+            "type": "number",
+          },
+          {
+            "const": 3,
+            "type": "number",
+          },
+        ],
+      },
+      "hashes": {
+        "additionalProperties": false,
+        "properties": {
+          "manifest_hash": {
+            "pattern": "^sha256:[a-f0-9]{64}$",
+            "type": "string",
+          },
+          "snapshot_hash": {
+            "pattern": "^sha256:[a-f0-9]{64}$",
+            "type": "string",
+          },
+        },
+        "required": [
+          "manifest_hash",
+          "snapshot_hash",
+        ],
+        "type": "object",
+      },
+      "policy_version": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "receipt_id": {
+        "anyOf": [
+          {
+            "pattern": "^rcpt_[a-f0-9]{32}$",
+            "type": "string",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "receipt_signature": {
+        "anyOf": [
+          {
+            "type": "string",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "remediations": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "remediation": {
+              "minLength": 1,
+              "type": "string",
+            },
+          },
+          "required": [
+            "code",
+            "remediation",
+          ],
+          "type": "object",
+        },
+        "type": "array",
+      },
+      "report_id": {
+        "minLength": 16,
+        "type": "string",
+      },
+      "schema_version": {
+        "const": "preflight.machine-report.v1.1",
+        "type": "string",
+      },
+    },
+    "required": [
+      "schema_version",
+      "report_id",
+      "decision",
+      "blockers",
+      "criteria",
+      "evidence_refs",
+      "remediations",
+      "hashes",
+      "policy_version",
+      "receipt_id",
+      "receipt_signature",
+      "badge_url",
+      "chain_anchor_tx",
+      "exit_code",
     ],
     "type": "object",
   },
@@ -607,6 +1535,28 @@ exports[`Release Gate frozen contracts > freezes JSON Schema snapshots 1`] = `
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
+      "badge_url": {
+        "anyOf": [
+          {
+            "format": "uri",
+            "type": "string",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "chain_anchor_tx": {
+        "anyOf": [
+          {
+            "pattern": "^0x[a-fA-F0-9]{64}$",
+            "type": "string",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
       "criterion_groups": {
         "items": {
           "additionalProperties": false,
@@ -951,6 +1901,169 @@ exports[`Release Gate frozen contracts > freezes JSON Schema snapshots 1`] = `
         "minLength": 1,
         "type": "string",
       },
+      "receipt": {
+        "additionalProperties": false,
+        "properties": {
+          "key_id": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "payload": {
+            "additionalProperties": false,
+            "properties": {
+              "chain_anchor": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "contract": {
+                        "pattern": "^0x[a-fA-F0-9]{40}$",
+                        "type": "string",
+                      },
+                      "tx": {
+                        "pattern": "^0x[a-fA-F0-9]{64}$",
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "tx",
+                      "contract",
+                    ],
+                    "type": "object",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "decision": {
+                "enum": [
+                  "RELEASE",
+                  "BLOCK",
+                  "UNKNOWN",
+                ],
+                "type": "string",
+              },
+              "issued_at": {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string",
+              },
+              "key_id": {
+                "minLength": 1,
+                "type": "string",
+              },
+              "manifest_hash": {
+                "pattern": "^sha256:[a-f0-9]{64}$",
+                "type": "string",
+              },
+              "payer": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "policy_version": {
+                "minLength": 1,
+                "type": "string",
+              },
+              "price_usdt": {
+                "pattern": "^\\d+(?:\\.\\d{1,6})?$",
+                "type": "string",
+              },
+              "receipt_id": {
+                "pattern": "^rcpt_[a-f0-9]{32}$",
+                "type": "string",
+              },
+              "report_id": {
+                "minLength": 16,
+                "type": "string",
+              },
+              "settlement_ref": {
+                "minLength": 1,
+                "type": "string",
+              },
+              "snapshot_hash": {
+                "pattern": "^sha256:[a-f0-9]{64}$",
+                "type": "string",
+              },
+              "target_fingerprint": {
+                "pattern": "^sha256:[a-f0-9]{64}$",
+                "type": "string",
+              },
+              "type": {
+                "const": "preflight.receipt.v1",
+                "type": "string",
+              },
+            },
+            "required": [
+              "type",
+              "receipt_id",
+              "report_id",
+              "decision",
+              "manifest_hash",
+              "snapshot_hash",
+              "policy_version",
+              "settlement_ref",
+              "payer",
+              "price_usdt",
+              "target_fingerprint",
+              "issued_at",
+              "key_id",
+              "chain_anchor",
+            ],
+            "type": "object",
+          },
+          "receipt_id": {
+            "pattern": "^rcpt_[a-f0-9]{32}$",
+            "type": "string",
+          },
+          "signature": {
+            "minLength": 32,
+            "type": "string",
+          },
+          "signature_alg": {
+            "const": "Ed25519",
+            "type": "string",
+          },
+          "verify": {
+            "additionalProperties": false,
+            "properties": {
+              "canonicalization": {
+                "const": "preflight.canonical-json.v1",
+                "type": "string",
+              },
+              "payload_hash": {
+                "pattern": "^sha256:[a-f0-9]{64}$",
+                "type": "string",
+              },
+              "pubkeys_url": {
+                "format": "uri",
+                "type": "string",
+              },
+            },
+            "required": [
+              "canonicalization",
+              "payload_hash",
+              "pubkeys_url",
+            ],
+            "type": "object",
+          },
+        },
+        "required": [
+          "receipt_id",
+          "payload",
+          "signature",
+          "signature_alg",
+          "key_id",
+          "verify",
+        ],
+        "type": "object",
+      },
       "report_access": {
         "additionalProperties": false,
         "properties": {
@@ -1171,184 +2284,489 @@ exports[`Release Gate frozen contracts > freezes JSON Schema snapshots 1`] = `
       },
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "manifest": {
+    "anyOf": [
+      {
         "additionalProperties": false,
         "properties": {
-          "payment": {
-            "oneOf": [
-              {
+          "authorize_buyer_proof": {
+            "const": true,
+            "type": "boolean",
+          },
+          "include_in_gallery": {
+            "default": false,
+            "type": "boolean",
+          },
+          "manifest": {
+            "additionalProperties": false,
+            "properties": {
+              "payment": {
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "mode": {
+                        "const": "FREE",
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "mode",
+                    ],
+                    "type": "object",
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "amount_atomic": {
+                        "pattern": "^\\d+$",
+                        "type": "string",
+                      },
+                      "asset": {
+                        "minLength": 1,
+                        "type": "string",
+                      },
+                      "mode": {
+                        "const": "X402",
+                        "type": "string",
+                      },
+                      "network": {
+                        "minLength": 1,
+                        "type": "string",
+                      },
+                      "pay_to": {
+                        "pattern": "^0x[a-fA-F0-9]{40}$",
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "mode",
+                      "network",
+                      "asset",
+                      "amount_atomic",
+                      "pay_to",
+                    ],
+                    "type": "object",
+                  },
+                ],
+              },
+              "release": {
                 "additionalProperties": false,
                 "properties": {
-                  "mode": {
-                    "const": "FREE",
+                  "release_version": {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "service_name": {
+                    "maxLength": 120,
+                    "minLength": 1,
                     "type": "string",
                   },
                 },
                 "required": [
-                  "mode",
+                  "service_name",
                 ],
                 "type": "object",
               },
-              {
+              "request_contract": {
                 "additionalProperties": false,
                 "properties": {
-                  "amount_atomic": {
-                    "pattern": "^\\d+$",
+                  "content_type": {
+                    "const": "application/json",
                     "type": "string",
                   },
-                  "asset": {
-                    "minLength": 1,
+                  "schema": {
+                    "$ref": "#/$defs/__schema0",
+                  },
+                },
+                "required": [
+                  "content_type",
+                  "schema",
+                ],
+                "type": "object",
+              },
+              "response_contract": {
+                "additionalProperties": false,
+                "properties": {
+                  "observable_via": {
+                    "enum": [
+                      "MCP_OUTPUT_SCHEMA",
+                      "FREE_RESPONSE",
+                    ],
                     "type": "string",
                   },
-                  "mode": {
-                    "const": "X402",
+                  "required": {
+                    "type": "boolean",
+                  },
+                  "schema": {
+                    "$ref": "#/$defs/__schema0",
+                  },
+                },
+                "required": [
+                  "required",
+                  "schema",
+                  "observable_via",
+                ],
+                "type": "object",
+              },
+              "schema_version": {
+                "const": "preflight.release-manifest.v1",
+                "type": "string",
+              },
+              "target": {
+                "additionalProperties": false,
+                "properties": {
+                  "endpoint": {
+                    "format": "uri",
                     "type": "string",
                   },
-                  "network": {
-                    "minLength": 1,
+                  "interface_mode": {
+                    "enum": [
+                      "FREE_HTTP",
+                      "X402_HTTP",
+                      "MCP_PLUS_FREE_HTTP",
+                      "MCP_PLUS_X402_HTTP",
+                    ],
                     "type": "string",
                   },
-                  "pay_to": {
-                    "pattern": "^0x[a-fA-F0-9]{40}$",
+                  "mcp_url": {
+                    "format": "uri",
+                    "type": "string",
+                  },
+                  "method": {
+                    "const": "POST",
+                    "type": "string",
+                  },
+                  "redirect_policy": {
+                    "enum": [
+                      "NONE",
+                      "SAME_ORIGIN",
+                    ],
                     "type": "string",
                   },
                 },
                 "required": [
-                  "mode",
-                  "network",
-                  "asset",
-                  "amount_atomic",
-                  "pay_to",
+                  "endpoint",
+                  "method",
+                  "interface_mode",
                 ],
                 "type": "object",
               },
-            ],
-          },
-          "release": {
-            "additionalProperties": false,
-            "properties": {
-              "release_version": {
-                "maxLength": 120,
-                "minLength": 1,
-                "type": "string",
-              },
-              "service_name": {
-                "maxLength": 120,
-                "minLength": 1,
-                "type": "string",
-              },
             },
             "required": [
-              "service_name",
+              "schema_version",
+              "release",
+              "target",
+              "payment",
             ],
             "type": "object",
           },
-          "request_contract": {
-            "additionalProperties": false,
-            "properties": {
-              "content_type": {
-                "const": "application/json",
-                "type": "string",
-              },
-              "schema": {
-                "$ref": "#/$defs/__schema0",
-              },
-            },
-            "required": [
-              "content_type",
-              "schema",
-            ],
-            "type": "object",
+          "owner_attestation": {
+            "const": true,
+            "type": "boolean",
           },
-          "response_contract": {
-            "additionalProperties": false,
-            "properties": {
-              "observable_via": {
-                "enum": [
-                  "MCP_OUTPUT_SCHEMA",
-                  "FREE_RESPONSE",
-                ],
-                "type": "string",
-              },
-              "required": {
-                "type": "boolean",
-              },
-              "schema": {
-                "$ref": "#/$defs/__schema0",
-              },
-            },
-            "required": [
-              "required",
-              "schema",
-              "observable_via",
-            ],
-            "type": "object",
+          "probe_input": {
+            "$ref": "#/$defs/__schema1",
           },
           "schema_version": {
-            "const": "preflight.release-manifest.v1",
+            "const": "preflight.verify-release-request.v1",
             "type": "string",
-          },
-          "target": {
-            "additionalProperties": false,
-            "properties": {
-              "endpoint": {
-                "format": "uri",
-                "type": "string",
-              },
-              "interface_mode": {
-                "enum": [
-                  "FREE_HTTP",
-                  "X402_HTTP",
-                  "MCP_PLUS_FREE_HTTP",
-                  "MCP_PLUS_X402_HTTP",
-                ],
-                "type": "string",
-              },
-              "mcp_url": {
-                "format": "uri",
-                "type": "string",
-              },
-              "method": {
-                "const": "POST",
-                "type": "string",
-              },
-              "redirect_policy": {
-                "enum": [
-                  "NONE",
-                  "SAME_ORIGIN",
-                ],
-                "type": "string",
-              },
-            },
-            "required": [
-              "endpoint",
-              "method",
-              "interface_mode",
-            ],
-            "type": "object",
           },
         },
         "required": [
           "schema_version",
-          "release",
-          "target",
-          "payment",
+          "manifest",
         ],
         "type": "object",
       },
-      "probe_input": {
-        "$ref": "#/$defs/__schema1",
+      {
+        "additionalProperties": false,
+        "properties": {
+          "agent_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string",
+          },
+          "authorize_buyer_proof": {
+            "const": true,
+            "type": "boolean",
+          },
+          "endpoint": {
+            "format": "uri",
+            "type": "string",
+          },
+          "expected": {
+            "additionalProperties": false,
+            "properties": {
+              "payment": {
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "mode": {
+                        "const": "FREE",
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "mode",
+                    ],
+                    "type": "object",
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "amount_atomic": {
+                        "pattern": "^\\d+$",
+                        "type": "string",
+                      },
+                      "asset": {
+                        "minLength": 1,
+                        "type": "string",
+                      },
+                      "mode": {
+                        "const": "X402",
+                        "type": "string",
+                      },
+                      "network": {
+                        "minLength": 1,
+                        "type": "string",
+                      },
+                      "pay_to": {
+                        "pattern": "^0x[a-fA-F0-9]{40}$",
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "mode",
+                    ],
+                    "type": "object",
+                  },
+                ],
+              },
+              "release": {
+                "additionalProperties": false,
+                "properties": {
+                  "release_version": {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "service_name": {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                },
+                "type": "object",
+              },
+              "request_contract": {
+                "additionalProperties": false,
+                "properties": {
+                  "content_type": {
+                    "const": "application/json",
+                    "type": "string",
+                  },
+                  "schema": {
+                    "$ref": "#/$defs/__schema0",
+                  },
+                },
+                "required": [
+                  "content_type",
+                  "schema",
+                ],
+                "type": "object",
+              },
+              "response_contract": {
+                "additionalProperties": false,
+                "properties": {
+                  "observable_via": {
+                    "enum": [
+                      "MCP_OUTPUT_SCHEMA",
+                      "FREE_RESPONSE",
+                    ],
+                    "type": "string",
+                  },
+                  "required": {
+                    "type": "boolean",
+                  },
+                  "schema": {
+                    "$ref": "#/$defs/__schema0",
+                  },
+                },
+                "required": [
+                  "required",
+                  "schema",
+                  "observable_via",
+                ],
+                "type": "object",
+              },
+              "target": {
+                "additionalProperties": false,
+                "properties": {
+                  "endpoint": {
+                    "format": "uri",
+                    "type": "string",
+                  },
+                  "interface_mode": {
+                    "enum": [
+                      "FREE_HTTP",
+                      "X402_HTTP",
+                      "MCP_PLUS_FREE_HTTP",
+                      "MCP_PLUS_X402_HTTP",
+                    ],
+                    "type": "string",
+                  },
+                  "mcp_url": {
+                    "format": "uri",
+                    "type": "string",
+                  },
+                  "method": {
+                    "const": "POST",
+                    "type": "string",
+                  },
+                  "redirect_policy": {
+                    "enum": [
+                      "NONE",
+                      "SAME_ORIGIN",
+                    ],
+                    "type": "string",
+                  },
+                },
+                "type": "object",
+              },
+            },
+            "type": "object",
+          },
+          "include_in_gallery": {
+            "default": false,
+            "type": "boolean",
+          },
+          "owner_attestation": {
+            "const": true,
+            "type": "boolean",
+          },
+          "probe_input": {
+            "$ref": "#/$defs/__schema1",
+          },
+          "schema_version": {
+            "const": "preflight.verify-release-request.v1",
+            "type": "string",
+          },
+        },
+        "required": [
+          "schema_version",
+        ],
+        "type": "object",
+      },
+    ],
+  },
+  "runStatus": {
+    "$defs": {
+      "__schema0": {
+        "anyOf": [
+          {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "number",
+              },
+              {
+                "type": "boolean",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          {
+            "items": {
+              "$ref": "#/$defs/__schema0",
+            },
+            "type": "array",
+          },
+          {
+            "additionalProperties": {
+              "$ref": "#/$defs/__schema0",
+            },
+            "propertyNames": {
+              "type": "string",
+            },
+            "type": "object",
+          },
+        ],
+      },
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "events": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "evidence_ref": {
+              "type": "string",
+            },
+            "observed_value": {
+              "$ref": "#/$defs/__schema0",
+            },
+            "stage": {
+              "enum": [
+                "reachable",
+                "mcp_discovered",
+                "challenge_parsed",
+                "surface_reconstructed",
+                "intent_reconciled",
+                "decision_sealed",
+                "authorized",
+                "paid",
+                "settled",
+                "replayed",
+                "delivered",
+              ],
+              "type": "string",
+            },
+            "status": {
+              "enum": [
+                "pending",
+                "active",
+                "match",
+                "contradiction",
+                "unknown",
+                "na",
+              ],
+              "type": "string",
+            },
+            "timestamp": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "type": "string",
+            },
+          },
+          "required": [
+            "stage",
+            "status",
+            "timestamp",
+          ],
+          "type": "object",
+        },
+        "type": "array",
+      },
+      "run_id": {
+        "minLength": 16,
+        "type": "string",
       },
       "schema_version": {
-        "const": "preflight.verify-release-request.v1",
+        "const": "preflight.run-status.v1",
         "type": "string",
       },
     },
     "required": [
       "schema_version",
-      "manifest",
+      "run_id",
+      "events",
     ],
     "type": "object",
   },

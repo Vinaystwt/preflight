@@ -23,6 +23,7 @@ function gateway(overrides: Partial<ReleasePaymentGateway> = {}): ReleasePayment
     requirements: vi.fn(async () => [requirement] as never), challenge: vi.fn(async () => Buffer.from(JSON.stringify(challenge)).toString("base64")),
     decode: vi.fn(() => paymentPayload as never), match: vi.fn(() => requirement as never), verify: vi.fn(async () => ({ valid: true, payer: paymentPayload.payload.authorization.from })),
     settle: vi.fn(async () => ({ success: true, status: "success", transaction: "0xsettled", network: requirement.network, payer: paymentPayload.payload.authorization.from } as never)),
+    settlementStatus: vi.fn(async () => ({ status: "success", transaction: "0xsettled" } as never)),
     responseHeader: vi.fn(() => "settled-header"), ...overrides
   };
 }
@@ -56,6 +57,25 @@ describe.skipIf(!databaseUrl)("settlement-before-publication lifecycle", () => {
       const retrieved = await app.inject({ method: "GET", url: `/api/v1/reports/${report.report_id}`, headers: { authorization: `Bearer ${report.report_access.access_token}` } }); expect(retrieved.statusCode).toBe(200); expect(retrieved.headers["cache-control"]).toBe("private, no-store");
       const replay = await app.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "idempotency-key": "release-test-identity-0001", "payment-signature": "paid" }, payload: requestBody }); expect(replay.statusCode).toBe(200); expect(fake.settle).toHaveBeenCalledTimes(1);
       const reusedPayment = await app.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "idempotency-key": "release-test-identity-0002", "payment-signature": "paid" }, payload: requestBody }); expect(reusedPayment.statusCode).toBe(409); expect(reusedPayment.json()).toMatchObject({ error: { code: "PAYMENT_REPLAY" } }); expect(fake.settle).toHaveBeenCalledTimes(1);
+      await app.close();
+    } finally { await sql.unsafe(`DROP SCHEMA ${schema} CASCADE`); await sql.end(); }
+  }, 30_000);
+
+  it("discovers an endpoint-only request, publishes after settlement, and exposes private run events plus machine report", async () => {
+    const sql = postgres(databaseUrl!, { max: 1 }); const schema = `release_endpoint_${randomUUID().replaceAll("-", "")}`; await sql.unsafe(`CREATE SCHEMA ${schema}`);
+    try {
+      await sql.unsafe(`SET search_path TO ${schema}`); await sql.unsafe(await readFile(migrationUrl, "utf8"));
+      const config = loadConfig({ NODE_ENV: "test", BUILD_SHA: "abcdef1", DATABASE_URL: databaseUrl!, OPERATOR_WALLET: "0x7bb9c4d6e06b9dee783eb31ff73d9345803efbd2", REPORT_TOKEN_SECRET: "test-secret-that-is-longer-than-thirty-two-bytes" });
+      const app = Fastify(); const fake = gateway(); mountReleaseGate(app, config, { sql } as unknown as Database, { gateway: fake, egress: egress() });
+      const requestBody = { schema_version: "preflight.verify-release-request.v1", endpoint: manifestFixture.target.endpoint };
+      const unpaid = await app.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "idempotency-key": "endpoint-only-identity-0001" }, payload: requestBody }); expect(unpaid.statusCode).toBe(402);
+      const paid = await app.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "idempotency-key": "endpoint-only-identity-0001", "payment-signature": "paid" }, payload: requestBody });
+      expect(paid.statusCode).toBe(200); const report = paid.json(); expect(report).toMatchObject({ decision: "RELEASE", manifest: { canonical_manifest: { target: { interface_mode: "X402_HTTP" } } } });
+      const events = await app.inject({ method: "GET", url: `/api/v1/runs/${report.report_id}/events`, headers: { authorization: `Bearer ${report.report_access.access_token}` } });
+      expect(events.statusCode).toBe(200); expect(events.json().events.map((item: { stage: string }) => item.stage)).toEqual(expect.arrayContaining(["reachable", "challenge_parsed", "surface_reconstructed", "intent_reconciled", "decision_sealed", "settled", "delivered"]));
+      const machine = await app.inject({ method: "GET", url: `/api/v1/reports/${report.report_id}/machine`, headers: { authorization: `Bearer ${report.report_access.access_token}` } });
+      expect(machine.statusCode).toBe(200); expect(machine.json()).toMatchObject({ schema_version: "preflight.machine-report.v1.1", decision: "RELEASE", exit_code: 0 });
+      const denied = await app.inject({ method: "GET", url: `/api/v1/runs/${report.report_id}/events` }); expect(denied.statusCode).toBe(404);
       await app.close();
     } finally { await sql.unsafe(`DROP SCHEMA ${schema} CASCADE`); await sql.end(); }
   }, 30_000);

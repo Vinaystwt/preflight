@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# build outputs
+dist/
+build/
+out/
+.next/
+coverage/
+playwright-report/
+test-results/
+
+# local/OS files
+.DS_Store
+*.tsbuildinfo
+
+# secrets and local env
+.env
+.env.*
+*.pem
+*.key
+
+# obsolete local frontend worktree preserved in audit archives, not canonical source
+frontend-v2/

@@ -59,7 +59,7 @@ describe("full conformance fixtures", () => {
 });
 
 describe("PreFlight dogfood", () => {
-  it("advertises only the Release Gate discovery tool", async () => {
+  it("advertises Release Gate discovery plus paid verify_release wrapper", async () => {
     const { app } = await buildServer({ NODE_ENV: "test", PUBLIC_DOMAIN: "api.usepreflight.xyz" });
     try {
       const headers = { "content-type": "application/json", accept: "application/json, text/event-stream", "mcp-protocol-version": "2025-03-26" };
@@ -67,10 +67,12 @@ describe("PreFlight dogfood", () => {
       const listPayload = listed.json() as Record<string, unknown>;
       expect(evaluateMcpToolsPayload(listPayload)).toEqual([]);
       const toolNames = ((listPayload.result as { tools: Array<{ name: string }> }).tools).map((tool) => tool.name);
-      expect(toolNames).toEqual(["preflight_service_info"]);
+      expect(toolNames).toEqual(["preflight_service_info", "verify_release"]);
       const called = await app.inject({ method: "POST", url: "/mcp", headers, payload: { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "preflight_service_info", arguments: {} } } });
       const pointer = (called.json() as { result: { structuredContent: Record<string, unknown> } }).result.structuredContent;
       expect(pointer).toMatchObject({ service: "verify_release", status: "contract_frozen", price_usdt: "0.10" });
+      const unpaidVerify = await app.inject({ method: "POST", url: "/mcp", headers, payload: { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "verify_release", arguments: { schema_version: "preflight.verify-release-request.v1", endpoint: "https://example.com/api" } } } });
+      expect((unpaidVerify.json() as { result: { structuredContent: Record<string, unknown> } }).result.structuredContent).toMatchObject({ paid: true, endpoint: "POST https://api.usepreflight.xyz/api/v1/verify-release" });
 
       const golden = await fixture("golden");
       const services: PreflightServices = {

@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { FastifyInstance } from "fastify";
 import type { Config } from "../config.js";
+import { verifyReleaseRequestV1Schema } from "../contracts/release-gate.js";
 
 const SERVICE = {
   service: "verify_release",
@@ -24,11 +25,45 @@ function createDiscoveryServer(config: Config): McpServer {
     const value = { ...SERVICE, price_usdt: config.PRICE_VERIFY_RELEASE, paid_endpoint: `https://${config.PUBLIC_DOMAIN}${SERVICE.paid_endpoint}` };
     return { content: [{ type: "text" as const, text: JSON.stringify(value) }], structuredContent: value };
   });
+  if (config.MCP_TOOL_ENABLED) {
+    server.registerTool("verify_release", {
+      title: "Verify Release",
+      description: "Paid Release Gate verification. Unpaid MCP calls return a pointer to the canonical x402 HTTP service.",
+      inputSchema: verifyReleaseRequestV1Schema,
+      annotations: { readOnlyHint: true }
+    }, () => {
+      const pointer = paidPointer(config);
+      return { content: [{ type: "text" as const, text: JSON.stringify(pointer) }], structuredContent: pointer };
+    });
+  }
   return server;
 }
 
 export function mountMcp(app: FastifyInstance, config: Config): void {
   app.all("/mcp", async (request, reply) => {
+    const body = request.body as { jsonrpc?: string; id?: unknown; method?: string; params?: { name?: string; arguments?: unknown } } | undefined;
+    if (config.MCP_TOOL_ENABLED && request.method === "POST" && body?.method === "tools/call" && body.params?.name === "verify_release") {
+      const signature = request.headers["payment-signature"];
+      if (typeof signature !== "string") return reply.send(jsonRpcResult(body.id, paidPointer(config)));
+      const inject = app.inject as unknown as (options: {
+        method: string; url: string; headers: Record<string, string>; payload: string;
+      }) => Promise<{ statusCode: number; headers: Record<string, string | string[] | undefined>; body: string }>;
+      const injected = await inject({
+        method: "POST",
+        url: "/api/v1/verify-release",
+        headers: {
+          "content-type": "application/json",
+          "payment-signature": signature,
+          "idempotency-key": typeof request.headers["idempotency-key"] === "string" ? request.headers["idempotency-key"] : `mcp-${String(body.id ?? Date.now())}`
+        },
+        payload: JSON.stringify(body.params.arguments ?? {})
+      });
+      const paymentResponse = injected.headers["payment-response"];
+      if (paymentResponse) reply.header("PAYMENT-RESPONSE", paymentResponse);
+      const parsed = safeJson(injected.body);
+      if (injected.statusCode >= 400) return reply.code(injected.statusCode).send(jsonRpcResult(body.id, parsed, true));
+      return reply.send(jsonRpcResult(body.id, parsed));
+    }
     const server = createDiscoveryServer(config);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     await server.connect(transport);
@@ -39,4 +74,29 @@ export function mountMcp(app: FastifyInstance, config: Config): void {
       await server.close().catch(() => undefined);
     }
   });
+}
+
+function paidPointer(config: Config) {
+  return {
+    paid: true,
+    price_usdt: config.PRICE_VERIFY_RELEASE,
+    endpoint: `POST https://${config.PUBLIC_DOMAIN}/api/v1/verify-release`,
+    how: "x402 v2: expect 402 + PAYMENT-REQUIRED, replay with PAYMENT-SIGNATURE"
+  };
+}
+
+function safeJson(value: string): unknown {
+  try { return JSON.parse(value) as unknown; } catch { return value; }
+}
+
+function jsonRpcResult(id: unknown, value: unknown, isError = false) {
+  return {
+    jsonrpc: "2.0",
+    id,
+    result: {
+      content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }],
+      structuredContent: value,
+      isError
+    }
+  };
 }

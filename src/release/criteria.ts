@@ -3,7 +3,7 @@ import type { JsonValue } from "../contracts/canonical.js";
 import type { EvidenceArtifact } from "./evidence.js";
 
 export const POLICY_VERSION = "preflight.release-policy.v1";
-type ManifestPath = "target.endpoint" | "target.method" | "target.interface_mode" | "target.mcp_url" | "target.redirect_policy" | "payment.mode" | "payment.network" | "payment.asset" | "payment.amount_atomic" | "payment.pay_to" | "request_contract.schema" | "response_contract.schema";
+type ManifestPath = "target.endpoint" | "target.method" | "target.interface_mode" | "target.mcp_url" | "target.redirect_policy" | "payment.mode" | "payment.network" | "payment.asset" | "payment.amount_atomic" | "payment.pay_to" | "request_contract.schema" | "response_contract.schema" | "buyer_proof.settlement" | "buyer_proof.delivery";
 interface CriterionDefinition { code: string; group: string; path: ManifestPath; mandatory: boolean; evidence: EvidenceArtifact["kind"]; comparison_rule: string; consequence: string; remediation: string }
 
 export const criterionRegistry: readonly CriterionDefinition[] = Object.freeze([
@@ -18,10 +18,13 @@ export const criterionRegistry: readonly CriterionDefinition[] = Object.freeze([
   { code: "PAYMENT_AMOUNT", group: "payment", path: "payment.amount_atomic", mandatory: true, evidence: "X402", comparison_rule: "at least one accepts entry has the exact atomic amount", consequence: "The live price differs from operator intent.", remediation: "Set the x402 atomic amount to the confirmed value." },
   { code: "PAYMENT_PAY_TO", group: "payment", path: "payment.pay_to", mandatory: true, evidence: "X402", comparison_rule: "at least one accepts entry has the exact payTo address", consequence: "Funds may settle to an unintended wallet.", remediation: "Set payTo to the confirmed recipient wallet." },
   { code: "REQUEST_SCHEMA", group: "contract", path: "request_contract.schema", mandatory: true, evidence: "MCP", comparison_rule: "declared request schema equals the observable MCP input schema", consequence: "Agents may construct invalid requests.", remediation: "Align the declared and live input schemas." },
-  { code: "RESPONSE_SCHEMA", group: "contract", path: "response_contract.schema", mandatory: true, evidence: "MCP", comparison_rule: "required response schema equals safely observable output schema", consequence: "The promised response contract cannot be established.", remediation: "Expose the declared output schema or make the criterion optional in a new confirmed manifest." }
+  { code: "RESPONSE_SCHEMA", group: "contract", path: "response_contract.schema", mandatory: true, evidence: "MCP", comparison_rule: "required response schema equals safely observable output schema", consequence: "The promised response contract cannot be established.", remediation: "Expose the declared output schema or make the criterion optional in a new confirmed manifest." },
+  { code: "BUYER_SETTLEMENT", group: "buyer_proof", path: "buyer_proof.settlement", mandatory: false, evidence: "BUYER_PROOF", comparison_rule: "authorized outbound x402 proof settles to the declared target payTo", consequence: "PreFlight could not prove that a real buyer can complete payment.", remediation: "Fix the target payment replay/settlement flow and rerun with buyer proof authorized." },
+  { code: "BUYER_DELIVERY", group: "buyer_proof", path: "buyer_proof.delivery", mandatory: false, evidence: "BUYER_PROOF", comparison_rule: "authorized outbound x402 proof delivers a successful paid response and rejects duplicate replay", consequence: "A paid buyer may not receive the promised resource or duplicate payment replay is unsafe.", remediation: "Return a successful paid response and reject duplicate payment payloads." }
 ]);
 
 function expectedAt(manifest: ReleaseManifestV1, path: ManifestPath): JsonValue | undefined {
+  if (path === "buyer_proof.settlement" || path === "buyer_proof.delivery") return true;
   const [root, field] = path.split(".") as [keyof ReleaseManifestV1, string];
   const object = manifest[root] as unknown as Record<string, unknown>;
   return object?.[field] as JsonValue | undefined;
@@ -45,17 +48,34 @@ function stateFor(definition: CriterionDefinition, expected: JsonValue | undefin
   if (definition.code === "INTERFACE_MODE") { const wants = String(expected).startsWith("MCP_PLUS_"); const works = Array.isArray(normalized.tools); return { state: wants === works ? "MATCH" : "CONTRADICTION", observed: works ? "MCP" : "HTTP" }; }
   if (definition.code === "MCP_URL") { const works = Array.isArray(normalized.tools) && Number(normalized.initialize_status) === 200; return { state: works ? "MATCH" : "UNKNOWN", observed: artifact.source, limitation: works ? undefined : "MCP handshake or tools/list was not established." }; }
   if (definition.code === "REQUEST_SCHEMA" || definition.code === "RESPONSE_SCHEMA") return { state: "UNKNOWN", limitation: "Schema normalization adapter is not yet able to establish an exact supported-subset comparison." };
+  if (definition.code === "BUYER_SETTLEMENT") {
+    const authorized = normalized.authorized === true;
+    if (!authorized) return { state: "UNKNOWN", limitation: "Buyer proof was not authorized for this run." };
+    if (normalized.status === "BUYER_CAP_EXCEEDED" || normalized.status === "BUYER_TERMS_CHANGED") return { state: "CONTRADICTION", observed: normalized.status as JsonValue };
+    const settled = typeof normalized.settlement_reference === "string" && (normalized.receipt_status === "success" || normalized.status === "DELIVERED");
+    return { state: settled ? "MATCH" : "CONTRADICTION", observed: { status: normalized.status, settlement_reference: normalized.settlement_reference ?? null } as JsonValue };
+  }
+  if (definition.code === "BUYER_DELIVERY") {
+    const authorized = normalized.authorized === true;
+    if (!authorized) return { state: "UNKNOWN", limitation: "Buyer proof was not authorized for this run." };
+    if (normalized.status === "BUYER_CAP_EXCEEDED" || normalized.status === "BUYER_TERMS_CHANGED") return { state: "CONTRADICTION", observed: normalized.status as JsonValue };
+    const delivered = normalized.status === "DELIVERED" && Number(normalized.delivery_status) >= 200 && Number(normalized.delivery_status) < 300 && Number(normalized.duplicate_replay_status) === 409;
+    return { state: delivered ? "MATCH" : "CONTRADICTION", observed: { status: normalized.status, delivery_status: normalized.delivery_status ?? null, duplicate_replay_status: normalized.duplicate_replay_status ?? null } as JsonValue };
+  }
   if (definition.code === "PAYMENT_MODE") { const x402 = Number(normalized.status) === 402 && accepts(artifact).length > 0; const match = manifest.payment.mode === "X402" ? x402 : !x402; return { state: match ? "MATCH" : "CONTRADICTION", observed: x402 ? "X402" : "FREE" }; }
   const field = definition.code === "PAYMENT_NETWORK" ? "network" : definition.code === "PAYMENT_ASSET" ? "asset" : definition.code === "PAYMENT_AMOUNT" ? "amount" : "payTo";
   const values = accepts(artifact).map((entry) => entry[field]).filter((value): value is string => typeof value === "string");
   return { state: values.includes(String(expected)) ? "MATCH" : values.length ? "CONTRADICTION" : "UNKNOWN", observed: values as JsonValue, limitation: values.length ? undefined : `No ${field} value was observable.` };
 }
 
-export function evaluateCriteria(manifest: ReleaseManifestV1, artifacts: EvidenceArtifact[]): CriterionResult[] {
+export function evaluateCriteria(manifest: ReleaseManifestV1, artifacts: EvidenceArtifact[], options: { buyerAuthorized?: boolean } = {}): CriterionResult[] {
   const byKind = new Map(artifacts.map((artifact) => [artifact.kind, artifact]));
   return criterionRegistry.map((definition) => {
-    const expected = expectedAt(manifest, definition.path); const artifact = byKind.get(definition.evidence); const evaluated = stateFor(definition, expected, artifact, manifest);
-    return { code: definition.code, group: definition.group, state: evaluated.state, mandatory: definition.mandatory, expected, observed: evaluated.observed,
+    const expected = expectedAt(manifest, definition.path);
+    const artifact = definition.code === "INTERFACE_MODE" && !manifest.target.interface_mode.startsWith("MCP_PLUS_") ? byKind.get("TRANSPORT") : byKind.get(definition.evidence);
+    const evaluated = stateFor(definition, expected, artifact, manifest);
+    const mandatory = definition.group === "buyer_proof" ? Boolean(options.buyerAuthorized) : definition.mandatory;
+    return { code: definition.code, group: definition.group, state: evaluated.state, mandatory, expected, observed: evaluated.observed,
       provenance: artifact ? ["OPERATOR_SUPPLIED", "OBSERVED", "DERIVED"] : ["OPERATOR_SUPPLIED", "UNAVAILABLE"], comparison_rule: definition.comparison_rule,
       consequence: evaluated.state === "CONTRADICTION" ? definition.consequence : undefined, remediation: evaluated.state === "CONTRADICTION" || evaluated.state === "UNKNOWN" ? definition.remediation : undefined,
       evidence_refs: evidenceRefs(artifact), limitation: evaluated.limitation };
