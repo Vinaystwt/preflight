@@ -6,6 +6,7 @@ import { loadConfig } from "../config.js";
 
 const db = createDatabase(loadConfig());
 if (!db) throw new Error("DATABASE_URL is required for migrations");
+await db.sql`SET search_path TO public`;
 const file = fileURLToPath(new URL("./schema.sql", import.meta.url));
 await db.sql.unsafe(await readFile(file, "utf8"));
 const migrationDirectory = fileURLToPath(new URL("./migrations/", import.meta.url));
@@ -19,6 +20,7 @@ for (const name of (await readdir(migrationDirectory)).filter((entry) => entry.e
     continue;
   }
   await db.sql.begin(async (transaction) => {
+    await transaction`SET search_path TO public`;
     await transaction.unsafe(sqlText);
     await transaction`INSERT INTO schema_migrations (version, checksum) VALUES (${name}, ${checksum})`;
   });

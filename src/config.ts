@@ -33,6 +33,17 @@ const environment = z.object({
   PRICE_VERIFY_RELEASE: price.default("0.10"),
   RELEASE_PAYMENT_NETWORK: z.string().default("eip155:196"),
   RELEASE_PAYMENT_ASSET: z.string().default("0x779ded0c9e1022225f8e0630b35a9b54be713736"),
+  BUYER_WALLET_KEY: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),
+  BUYER_TARGET_DAILY_CAP_USDT: z.coerce.number().positive().default(2),
+  BUYER_GLOBAL_DAILY_CAP_USDT: z.coerce.number().positive().default(10),
+  ENABLE_STAGE3_TEST_FIXTURES: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  RECEIPTS_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+  BADGES_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+  GALLERY_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+  MCP_TOOL_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+  RECEIPT_SIGNING_KEY: z.string().min(32).optional(),
+  RECEIPT_KEY_ID: z.string().min(3).max(120).default("preflight-receipts-v1"),
+  RECEIPT_CHAIN_ANCHOR: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   // Comma-separated exact browser origins for the Release Gate frontend.
   // Keep this exact (rather than a permissive Vercel wildcard) so an
   // unrelated *.vercel.app deployment cannot read capability-token reports.

@@ -49,6 +49,75 @@
         }
       }
     },
+    "/api/v1/contracts/discovery/v1": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Frozen Discovery JSON Schema"
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/run-events/v1": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Frozen Run Events JSON Schema"
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/machine-report/v1": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Frozen Machine Report JSON Schema"
+          }
+        }
+      }
+    },
+    "/api/v1/discover": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "endpoint"
+                ],
+                "properties": {
+                  "endpoint": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Discovery-first proposed manifest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryResponseV1"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/v1/release-manifests/draft": {
       "post": {
         "requestBody": {
@@ -157,6 +226,229 @@
             "$ref": "#/components/responses/Error"
           },
           "410": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/reports/{report_id}/receipt": {
+      "post": {
+        "security": [
+          {
+            "bearerCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Idempotently minted signed receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptEnvelopeV1"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/receipts/{receipt_id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public signed receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptEnvelopeV1"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/pubkeys": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Active and retired receipt verification public keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PubkeysResponseV1"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reports/{report_id}/badge": {
+      "post": {
+        "security": [
+          {
+            "bearerCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Badge URL for RELEASE report"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/badge/{report_id}.svg": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Private RELEASE badge SVG"
+          },
+          "404": {
+            "description": "Unavailable"
+          },
+          "409": {
+            "description": "Expired due to drift"
+          }
+        }
+      }
+    },
+    "/api/v1/gallery": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Public redacted BLOCK/UNKNOWN gallery",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GalleryResponseV1"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{run_id}/events": {
+      "get": {
+        "security": [
+          {
+            "bearerCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Private ordered run-stage events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunStatusV1"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/reports/{report_id}/machine": {
+      "get": {
+        "security": [
+          {
+            "bearerCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Private machine-readable report for agents and CI",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MachineReportV1"
+                }
+              }
+            }
+          },
+          "404": {
             "$ref": "#/components/responses/Error"
           }
         }
@@ -440,186 +732,382 @@
       },
       "VerifyReleaseRequestV1": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "schema_version": {
-            "type": "string",
-            "const": "preflight.verify-release-request.v1"
-          },
-          "manifest": {
+        "anyOf": [
+          {
             "type": "object",
             "properties": {
               "schema_version": {
                 "type": "string",
-                "const": "preflight.release-manifest.v1"
+                "const": "preflight.verify-release-request.v1"
               },
-              "release": {
+              "manifest": {
                 "type": "object",
                 "properties": {
-                  "service_name": {
+                  "schema_version": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 120
+                    "const": "preflight.release-manifest.v1"
                   },
-                  "release_version": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 120
-                  }
-                },
-                "required": [
-                  "service_name"
-                ],
-                "additionalProperties": false
-              },
-              "target": {
-                "type": "object",
-                "properties": {
-                  "endpoint": {
-                    "type": "string",
-                    "format": "uri"
-                  },
-                  "method": {
-                    "type": "string",
-                    "const": "POST"
-                  },
-                  "interface_mode": {
-                    "type": "string",
-                    "enum": [
-                      "FREE_HTTP",
-                      "X402_HTTP",
-                      "MCP_PLUS_FREE_HTTP",
-                      "MCP_PLUS_X402_HTTP"
-                    ]
-                  },
-                  "mcp_url": {
-                    "type": "string",
-                    "format": "uri"
-                  },
-                  "redirect_policy": {
-                    "type": "string",
-                    "enum": [
-                      "NONE",
-                      "SAME_ORIGIN"
-                    ]
-                  }
-                },
-                "required": [
-                  "endpoint",
-                  "method",
-                  "interface_mode"
-                ],
-                "additionalProperties": false
-              },
-              "payment": {
-                "oneOf": [
-                  {
+                  "release": {
                     "type": "object",
                     "properties": {
-                      "mode": {
+                      "service_name": {
                         "type": "string",
-                        "const": "FREE"
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "release_version": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
                       }
                     },
                     "required": [
-                      "mode"
+                      "service_name"
                     ],
                     "additionalProperties": false
                   },
-                  {
+                  "target": {
                     "type": "object",
                     "properties": {
-                      "mode": {
+                      "endpoint": {
                         "type": "string",
-                        "const": "X402"
+                        "format": "uri"
                       },
-                      "network": {
+                      "method": {
                         "type": "string",
-                        "minLength": 1
+                        "const": "POST"
                       },
-                      "asset": {
+                      "interface_mode": {
                         "type": "string",
-                        "minLength": 1
+                        "enum": [
+                          "FREE_HTTP",
+                          "X402_HTTP",
+                          "MCP_PLUS_FREE_HTTP",
+                          "MCP_PLUS_X402_HTTP"
+                        ]
                       },
-                      "amount_atomic": {
+                      "mcp_url": {
                         "type": "string",
-                        "pattern": "^\\d+$"
+                        "format": "uri"
                       },
-                      "pay_to": {
+                      "redirect_policy": {
                         "type": "string",
-                        "pattern": "^0x[a-fA-F0-9]{40}$"
+                        "enum": [
+                          "NONE",
+                          "SAME_ORIGIN"
+                        ]
                       }
                     },
                     "required": [
-                      "mode",
-                      "network",
-                      "asset",
-                      "amount_atomic",
-                      "pay_to"
+                      "endpoint",
+                      "method",
+                      "interface_mode"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "payment": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "const": "FREE"
+                          }
+                        },
+                        "required": [
+                          "mode"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "const": "X402"
+                          },
+                          "network": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "asset": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "amount_atomic": {
+                            "type": "string",
+                            "pattern": "^\\d+$"
+                          },
+                          "pay_to": {
+                            "type": "string",
+                            "pattern": "^0x[a-fA-F0-9]{40}$"
+                          }
+                        },
+                        "required": [
+                          "mode",
+                          "network",
+                          "asset",
+                          "amount_atomic",
+                          "pay_to"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "request_contract": {
+                    "type": "object",
+                    "properties": {
+                      "content_type": {
+                        "type": "string",
+                        "const": "application/json"
+                      },
+                      "schema": {
+                        "$ref": "#/$defs/__schema0"
+                      }
+                    },
+                    "required": [
+                      "content_type",
+                      "schema"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "response_contract": {
+                    "type": "object",
+                    "properties": {
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "schema": {
+                        "$ref": "#/$defs/__schema0"
+                      },
+                      "observable_via": {
+                        "type": "string",
+                        "enum": [
+                          "MCP_OUTPUT_SCHEMA",
+                          "FREE_RESPONSE"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "required",
+                      "schema",
+                      "observable_via"
                     ],
                     "additionalProperties": false
                   }
-                ]
-              },
-              "request_contract": {
-                "type": "object",
-                "properties": {
-                  "content_type": {
-                    "type": "string",
-                    "const": "application/json"
-                  },
-                  "schema": {
-                    "$ref": "#/$defs/__schema0"
-                  }
                 },
                 "required": [
-                  "content_type",
-                  "schema"
+                  "schema_version",
+                  "release",
+                  "target",
+                  "payment"
                 ],
                 "additionalProperties": false
               },
-              "response_contract": {
-                "type": "object",
-                "properties": {
-                  "required": {
-                    "type": "boolean"
-                  },
-                  "schema": {
-                    "$ref": "#/$defs/__schema0"
-                  },
-                  "observable_via": {
-                    "type": "string",
-                    "enum": [
-                      "MCP_OUTPUT_SCHEMA",
-                      "FREE_RESPONSE"
-                    ]
-                  }
-                },
-                "required": [
-                  "required",
-                  "schema",
-                  "observable_via"
-                ],
-                "additionalProperties": false
+              "probe_input": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "authorize_buyer_proof": {
+                "type": "boolean",
+                "const": true
+              },
+              "owner_attestation": {
+                "type": "boolean",
+                "const": true
+              },
+              "include_in_gallery": {
+                "default": false,
+                "type": "boolean"
               }
             },
             "required": [
               "schema_version",
-              "release",
-              "target",
-              "payment"
+              "manifest"
             ],
             "additionalProperties": false
           },
-          "probe_input": {
-            "$ref": "#/$defs/__schema1"
+          {
+            "type": "object",
+            "properties": {
+              "schema_version": {
+                "type": "string",
+                "const": "preflight.verify-release-request.v1"
+              },
+              "endpoint": {
+                "type": "string",
+                "format": "uri"
+              },
+              "agent_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "expected": {
+                "type": "object",
+                "properties": {
+                  "release": {
+                    "type": "object",
+                    "properties": {
+                      "service_name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "release_version": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "target": {
+                    "type": "object",
+                    "properties": {
+                      "endpoint": {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      "method": {
+                        "type": "string",
+                        "const": "POST"
+                      },
+                      "interface_mode": {
+                        "type": "string",
+                        "enum": [
+                          "FREE_HTTP",
+                          "X402_HTTP",
+                          "MCP_PLUS_FREE_HTTP",
+                          "MCP_PLUS_X402_HTTP"
+                        ]
+                      },
+                      "mcp_url": {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      "redirect_policy": {
+                        "type": "string",
+                        "enum": [
+                          "NONE",
+                          "SAME_ORIGIN"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "payment": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "const": "FREE"
+                          }
+                        },
+                        "required": [
+                          "mode"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "const": "X402"
+                          },
+                          "network": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "asset": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "amount_atomic": {
+                            "type": "string",
+                            "pattern": "^\\d+$"
+                          },
+                          "pay_to": {
+                            "type": "string",
+                            "pattern": "^0x[a-fA-F0-9]{40}$"
+                          }
+                        },
+                        "required": [
+                          "mode"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "request_contract": {
+                    "type": "object",
+                    "properties": {
+                      "content_type": {
+                        "type": "string",
+                        "const": "application/json"
+                      },
+                      "schema": {
+                        "$ref": "#/$defs/__schema0"
+                      }
+                    },
+                    "required": [
+                      "content_type",
+                      "schema"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "response_contract": {
+                    "type": "object",
+                    "properties": {
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "schema": {
+                        "$ref": "#/$defs/__schema0"
+                      },
+                      "observable_via": {
+                        "type": "string",
+                        "enum": [
+                          "MCP_OUTPUT_SCHEMA",
+                          "FREE_RESPONSE"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "required",
+                      "schema",
+                      "observable_via"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "probe_input": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "authorize_buyer_proof": {
+                "type": "boolean",
+                "const": true
+              },
+              "owner_attestation": {
+                "type": "boolean",
+                "const": true
+              },
+              "include_in_gallery": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "schema_version"
+            ],
+            "additionalProperties": false
           }
-        },
-        "required": [
-          "schema_version",
-          "manifest"
         ],
-        "additionalProperties": false,
         "$defs": {
           "__schema0": {
             "type": "object",
@@ -722,6 +1210,1043 @@
                 },
                 "additionalProperties": {
                   "$ref": "#/$defs/__schema1"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "DiscoveryResponseV1": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "preflight.discovery.v1"
+          },
+          "endpoint": {
+            "type": "string",
+            "format": "uri"
+          },
+          "observed_surface": {
+            "type": "object",
+            "properties": {
+              "transport": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "mcp": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "x402": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "parse_error": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "accepts": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "scheme": {
+                              "type": "string"
+                            },
+                            "network": {
+                              "type": "string"
+                            },
+                            "asset": {
+                              "type": "string"
+                            },
+                            "amount": {
+                              "type": "string"
+                            },
+                            "payTo": {
+                              "type": "string"
+                            },
+                            "maxTimeoutSeconds": {
+                              "type": "number"
+                            },
+                            "extra": {
+                              "$ref": "#/$defs/__schema0"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "parse_error",
+                  "accepts"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "x402"
+            ],
+            "additionalProperties": false
+          },
+          "proposed_manifest": {
+            "type": "object",
+            "properties": {
+              "manifest": {
+                "type": "object",
+                "properties": {
+                  "schema_version": {
+                    "type": "string",
+                    "const": "preflight.release-manifest.v1"
+                  },
+                  "release": {
+                    "type": "object",
+                    "properties": {
+                      "service_name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "release_version": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      }
+                    },
+                    "required": [
+                      "service_name"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "target": {
+                    "type": "object",
+                    "properties": {
+                      "endpoint": {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      "method": {
+                        "type": "string",
+                        "const": "POST"
+                      },
+                      "interface_mode": {
+                        "type": "string",
+                        "enum": [
+                          "FREE_HTTP",
+                          "X402_HTTP",
+                          "MCP_PLUS_FREE_HTTP",
+                          "MCP_PLUS_X402_HTTP"
+                        ]
+                      },
+                      "mcp_url": {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      "redirect_policy": {
+                        "type": "string",
+                        "enum": [
+                          "NONE",
+                          "SAME_ORIGIN"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "endpoint",
+                      "method",
+                      "interface_mode"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "payment": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "const": "FREE"
+                          }
+                        },
+                        "required": [
+                          "mode"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "const": "X402"
+                          },
+                          "network": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "asset": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "amount_atomic": {
+                            "type": "string",
+                            "pattern": "^\\d+$"
+                          },
+                          "pay_to": {
+                            "type": "string",
+                            "pattern": "^0x[a-fA-F0-9]{40}$"
+                          }
+                        },
+                        "required": [
+                          "mode",
+                          "network",
+                          "asset",
+                          "amount_atomic",
+                          "pay_to"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "request_contract": {
+                    "type": "object",
+                    "properties": {
+                      "content_type": {
+                        "type": "string",
+                        "const": "application/json"
+                      },
+                      "schema": {
+                        "$ref": "#/$defs/__schema1"
+                      }
+                    },
+                    "required": [
+                      "content_type",
+                      "schema"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "response_contract": {
+                    "type": "object",
+                    "properties": {
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "schema": {
+                        "$ref": "#/$defs/__schema1"
+                      },
+                      "observable_via": {
+                        "type": "string",
+                        "enum": [
+                          "MCP_OUTPUT_SCHEMA",
+                          "FREE_RESPONSE"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "required",
+                      "schema",
+                      "observable_via"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "schema_version",
+                  "release",
+                  "target",
+                  "payment"
+                ],
+                "additionalProperties": false
+              },
+              "fields": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "listing",
+                        "runtime",
+                        "mcp_schema",
+                        "x402_challenge",
+                        "operator",
+                        "inferred"
+                      ]
+                    },
+                    "confidence": {
+                      "type": "string",
+                      "enum": [
+                        "observed",
+                        "inferred",
+                        "unknown"
+                      ]
+                    },
+                    "requires_confirmation": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "confidence",
+                    "requires_confirmation"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "fields"
+            ],
+            "additionalProperties": false
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "source": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "captured_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "summary": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "freshness_seconds": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "id",
+                "source",
+                "captured_at",
+                "digest",
+                "summary",
+                "freshness_seconds"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          }
+        },
+        "required": [
+          "schema_version",
+          "endpoint",
+          "observed_surface",
+          "proposed_manifest",
+          "evidence_refs",
+          "generated_at"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              }
+            ]
+          },
+          "__schema1": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "object",
+                  "array",
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "null"
+                ]
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "properties": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema1"
+                }
+              },
+              "required": {
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "items": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "enum": {
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              "const": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "additionalProperties": {
+                "type": "boolean"
+              },
+              "minLength": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "maxLength": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "minimum": {
+                "type": "number"
+              },
+              "maximum": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "RunStatusV1": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "preflight.run-status.v1"
+          },
+          "run_id": {
+            "type": "string",
+            "minLength": 16
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "stage": {
+                  "type": "string",
+                  "enum": [
+                    "reachable",
+                    "mcp_discovered",
+                    "challenge_parsed",
+                    "surface_reconstructed",
+                    "intent_reconciled",
+                    "decision_sealed",
+                    "authorized",
+                    "paid",
+                    "settled",
+                    "replayed",
+                    "delivered"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "active",
+                    "match",
+                    "contradiction",
+                    "unknown",
+                    "na"
+                  ]
+                },
+                "observed_value": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "evidence_ref": {
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                }
+              },
+              "required": [
+                "stage",
+                "status",
+                "timestamp"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "schema_version",
+          "run_id",
+          "events"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "MachineReportV1": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "preflight.machine-report.v1.1"
+          },
+          "report_id": {
+            "type": "string",
+            "minLength": 16
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "RELEASE",
+              "BLOCK",
+              "UNKNOWN"
+            ]
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "group": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "MATCH",
+                    "CONTRADICTION",
+                    "UNKNOWN",
+                    "NOT_APPLICABLE"
+                  ]
+                },
+                "mandatory": {
+                  "type": "boolean"
+                },
+                "expected": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "observed": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "provenance": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "OPERATOR_SUPPLIED",
+                      "OBSERVED",
+                      "DERIVED",
+                      "UNAVAILABLE"
+                    ]
+                  }
+                },
+                "comparison_rule": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "consequence": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "remediation": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "evidence_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "source": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "captured_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                      },
+                      "digest": {
+                        "type": "string",
+                        "pattern": "^sha256:[a-f0-9]{64}$"
+                      },
+                      "summary": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "freshness_seconds": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "source",
+                      "captured_at",
+                      "digest",
+                      "summary",
+                      "freshness_seconds"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "limitation": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "code",
+                "group",
+                "state",
+                "mandatory",
+                "provenance",
+                "comparison_rule",
+                "evidence_refs"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "group": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "MATCH",
+                    "CONTRADICTION",
+                    "UNKNOWN",
+                    "NOT_APPLICABLE"
+                  ]
+                },
+                "mandatory": {
+                  "type": "boolean"
+                },
+                "expected": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "observed": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "provenance": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "OPERATOR_SUPPLIED",
+                      "OBSERVED",
+                      "DERIVED",
+                      "UNAVAILABLE"
+                    ]
+                  }
+                },
+                "comparison_rule": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "consequence": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "remediation": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "evidence_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "source": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "captured_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                      },
+                      "digest": {
+                        "type": "string",
+                        "pattern": "^sha256:[a-f0-9]{64}$"
+                      },
+                      "summary": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "freshness_seconds": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "source",
+                      "captured_at",
+                      "digest",
+                      "summary",
+                      "freshness_seconds"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "limitation": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "code",
+                "group",
+                "state",
+                "mandatory",
+                "provenance",
+                "comparison_rule",
+                "evidence_refs"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "source": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "captured_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "summary": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "freshness_seconds": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "id",
+                "source",
+                "captured_at",
+                "digest",
+                "summary",
+                "freshness_seconds"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "remediations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "remediation": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "code",
+                "remediation"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "hashes": {
+            "type": "object",
+            "properties": {
+              "manifest_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "snapshot_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "manifest_hash",
+              "snapshot_hash"
+            ],
+            "additionalProperties": false
+          },
+          "policy_version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "receipt_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^rcpt_[a-f0-9]{32}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "receipt_signature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "badge_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "chain_anchor_tx": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^0x[a-fA-F0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "number",
+                "const": 0
+              },
+              {
+                "type": "number",
+                "const": 1
+              },
+              {
+                "type": "number",
+                "const": 2
+              },
+              {
+                "type": "number",
+                "const": 3
+              }
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "report_id",
+          "decision",
+          "blockers",
+          "criteria",
+          "evidence_refs",
+          "remediations",
+          "hashes",
+          "policy_version",
+          "receipt_id",
+          "receipt_signature",
+          "badge_url",
+          "chain_anchor_tx",
+          "exit_code"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
                 }
               }
             ]
@@ -1152,6 +2677,191 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           },
+          "receipt": {
+            "type": "object",
+            "properties": {
+              "receipt_id": {
+                "type": "string",
+                "pattern": "^rcpt_[a-f0-9]{32}$"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "preflight.receipt.v1"
+                  },
+                  "receipt_id": {
+                    "type": "string",
+                    "pattern": "^rcpt_[a-f0-9]{32}$"
+                  },
+                  "report_id": {
+                    "type": "string",
+                    "minLength": 16
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "RELEASE",
+                      "BLOCK",
+                      "UNKNOWN"
+                    ]
+                  },
+                  "manifest_hash": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "snapshot_hash": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "policy_version": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "settlement_ref": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "payer": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "price_usdt": {
+                    "type": "string",
+                    "pattern": "^\\d+(?:\\.\\d{1,6})?$"
+                  },
+                  "target_fingerprint": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "issued_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "key_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "chain_anchor": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "tx": {
+                            "type": "string",
+                            "pattern": "^0x[a-fA-F0-9]{64}$"
+                          },
+                          "contract": {
+                            "type": "string",
+                            "pattern": "^0x[a-fA-F0-9]{40}$"
+                          }
+                        },
+                        "required": [
+                          "tx",
+                          "contract"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "receipt_id",
+                  "report_id",
+                  "decision",
+                  "manifest_hash",
+                  "snapshot_hash",
+                  "policy_version",
+                  "settlement_ref",
+                  "payer",
+                  "price_usdt",
+                  "target_fingerprint",
+                  "issued_at",
+                  "key_id",
+                  "chain_anchor"
+                ],
+                "additionalProperties": false
+              },
+              "signature": {
+                "type": "string",
+                "minLength": 32
+              },
+              "signature_alg": {
+                "type": "string",
+                "const": "Ed25519"
+              },
+              "key_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "verify": {
+                "type": "object",
+                "properties": {
+                  "canonicalization": {
+                    "type": "string",
+                    "const": "preflight.canonical-json.v1"
+                  },
+                  "payload_hash": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "pubkeys_url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                },
+                "required": [
+                  "canonicalization",
+                  "payload_hash",
+                  "pubkeys_url"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "receipt_id",
+              "payload",
+              "signature",
+              "signature_alg",
+              "key_id",
+              "verify"
+            ],
+            "additionalProperties": false
+          },
+          "badge_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "chain_anchor_tx": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^0x[a-fA-F0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "report_access": {
             "type": "object",
             "properties": {
@@ -1293,6 +3003,306 @@
             ]
           }
         }
+      },
+      "ReceiptEnvelopeV1": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "receipt_id": {
+            "type": "string",
+            "pattern": "^rcpt_[a-f0-9]{32}$"
+          },
+          "payload": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "preflight.receipt.v1"
+              },
+              "receipt_id": {
+                "type": "string",
+                "pattern": "^rcpt_[a-f0-9]{32}$"
+              },
+              "report_id": {
+                "type": "string",
+                "minLength": 16
+              },
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "RELEASE",
+                  "BLOCK",
+                  "UNKNOWN"
+                ]
+              },
+              "manifest_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "snapshot_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "policy_version": {
+                "type": "string",
+                "minLength": 1
+              },
+              "settlement_ref": {
+                "type": "string",
+                "minLength": 1
+              },
+              "payer": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "price_usdt": {
+                "type": "string",
+                "pattern": "^\\d+(?:\\.\\d{1,6})?$"
+              },
+              "target_fingerprint": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "issued_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "key_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "chain_anchor": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "tx": {
+                        "type": "string",
+                        "pattern": "^0x[a-fA-F0-9]{64}$"
+                      },
+                      "contract": {
+                        "type": "string",
+                        "pattern": "^0x[a-fA-F0-9]{40}$"
+                      }
+                    },
+                    "required": [
+                      "tx",
+                      "contract"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "receipt_id",
+              "report_id",
+              "decision",
+              "manifest_hash",
+              "snapshot_hash",
+              "policy_version",
+              "settlement_ref",
+              "payer",
+              "price_usdt",
+              "target_fingerprint",
+              "issued_at",
+              "key_id",
+              "chain_anchor"
+            ],
+            "additionalProperties": false
+          },
+          "signature": {
+            "type": "string",
+            "minLength": 32
+          },
+          "signature_alg": {
+            "type": "string",
+            "const": "Ed25519"
+          },
+          "key_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "verify": {
+            "type": "object",
+            "properties": {
+              "canonicalization": {
+                "type": "string",
+                "const": "preflight.canonical-json.v1"
+              },
+              "payload_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "pubkeys_url": {
+                "type": "string",
+                "format": "uri"
+              }
+            },
+            "required": [
+              "canonicalization",
+              "payload_hash",
+              "pubkeys_url"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "receipt_id",
+          "payload",
+          "signature",
+          "signature_alg",
+          "key_id",
+          "verify"
+        ],
+        "additionalProperties": false
+      },
+      "PubkeysResponseV1": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "preflight.pubkeys.v1"
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "algorithm": {
+                  "type": "string",
+                  "const": "Ed25519"
+                },
+                "public_key_base64": {
+                  "type": "string",
+                  "minLength": 32
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "active",
+                    "retired"
+                  ]
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                }
+              },
+              "required": [
+                "key_id",
+                "algorithm",
+                "public_key_base64",
+                "status",
+                "created_at"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "schema_version",
+          "keys"
+        ],
+        "additionalProperties": false
+      },
+      "GalleryResponseV1": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "preflight.gallery.v1"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "schema_version": {
+                  "type": "string",
+                  "const": "preflight.gallery-entry.v1"
+                },
+                "gallery_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "report_id": {
+                  "type": "string",
+                  "minLength": 16
+                },
+                "decision": {
+                  "type": "string",
+                  "enum": [
+                    "BLOCK",
+                    "UNKNOWN"
+                  ]
+                },
+                "policy_version": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "criterion_codes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "why": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "fix": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "generated_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                }
+              },
+              "required": [
+                "schema_version",
+                "gallery_id",
+                "report_id",
+                "decision",
+                "policy_version",
+                "criterion_codes",
+                "why",
+                "fix",
+                "generated_at"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "schema_version",
+          "entries"
+        ],
+        "additionalProperties": false
       },
       "ApiErrorV1": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",

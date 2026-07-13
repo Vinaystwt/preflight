@@ -7,19 +7,30 @@ function corsPath(path: string): boolean {
     || path === "/api/v1/playground_check"
     || path === "/api/v1/health_index"
     || path === "/api/v1/service"
+    || path === "/api/v1/pubkeys"
+    || path === "/api/v1/gallery"
     || path.startsWith("/api/v1/contracts/")
+    || path === "/api/v1/discover"
     || path === "/api/v1/release-manifests/draft"
+    || path.startsWith("/api/v1/runs/")
     || path.startsWith("/api/v1/reports/")
+    || path.startsWith("/api/v1/receipts/")
+    || path.startsWith("/api/v1/badge/")
     || path.startsWith("/r/")
     || path.startsWith("/badge/");
 }
 
 export function mountPublicCors(app: FastifyInstance, frontendOrigins: readonly string[] = []): void {
-  const allowedOrigins = new Set([...DEFAULT_ALLOWED_ORIGINS, ...frontendOrigins]);
+  const allowedOrigins = new Set([...DEFAULT_ALLOWED_ORIGINS, ...frontendOrigins].filter((origin) => !origin.includes("*")));
+  const wildcardPatterns = frontendOrigins.filter((origin) => origin.includes("*")).map((origin) => {
+    const escaped = origin.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replaceAll("*", "[a-z0-9-]+");
+    return new RegExp(`^${escaped}$`, "i");
+  });
+  const allowed = (origin: string) => allowedOrigins.has(origin) || wildcardPatterns.some((pattern) => pattern.test(origin));
   app.addHook("onRequest", async (request, reply) => {
     const origin = request.headers.origin;
     const path = request.url.split("?", 1)[0] ?? request.url;
-    if (origin && allowedOrigins.has(origin) && corsPath(path)) {
+    if (origin && allowed(origin) && corsPath(path)) {
       reply.header("access-control-allow-origin", origin);
       reply.header("vary", "Origin");
       reply.header("access-control-allow-methods", "GET, POST, OPTIONS");

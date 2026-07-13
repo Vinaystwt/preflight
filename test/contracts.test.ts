@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
-  apiErrorV1Schema, canonicalHash, canonicalJson, criterionResultSchema, manifestHash,
-  releaseManifestV1Schema, verifyReleaseRequestV1Schema, verifyReleaseResponseV1Schema
+  apiErrorV1Schema, canonicalHash, canonicalJson, criterionResultSchema, discoveryResponseV1Schema, machineReportV1Schema, manifestHash,
+  releaseManifestV1Schema, runStatusV1Schema, verifyReleaseRequestV1Schema, verifyReleaseResponseV1Schema
 } from "../src/contracts/index.js";
 import { manifestFixture } from "./helpers/manifest.js";
 
@@ -23,6 +23,7 @@ describe("Release Gate frozen contracts", () => {
   it("freezes JSON Schema snapshots", () => {
     expect({
       manifest: z.toJSONSchema(releaseManifestV1Schema), request: z.toJSONSchema(verifyReleaseRequestV1Schema),
+      discovery: z.toJSONSchema(discoveryResponseV1Schema), runStatus: z.toJSONSchema(runStatusV1Schema), machineReport: z.toJSONSchema(machineReportV1Schema),
       report: z.toJSONSchema(verifyReleaseResponseV1Schema), criterion: z.toJSONSchema(criterionResultSchema), error: z.toJSONSchema(apiErrorV1Schema)
     }).toMatchSnapshot();
   });

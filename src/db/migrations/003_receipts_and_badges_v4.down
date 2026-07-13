@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS gallery_entries;
+DROP TABLE IF EXISTS badge_events;
+DROP TABLE IF EXISTS receipts;
+DROP TABLE IF EXISTS pubkeys;
