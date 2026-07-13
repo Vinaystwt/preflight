@@ -1,8 +1,30 @@
 {
   "name": "@usepreflight/cli",
   "version": "0.1.0",
-  "description": "PreFlight Release Gate command-line verifier",
+  "description": "Command-line client for PreFlight Release Gate verification and signed receipt checks.",
   "type": "module",
+  "author": "PreFlight",
+  "homepage": "https://preflight-web-bice.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vinaystwt/preflight.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/Vinaystwt/preflight/issues"
+  },
+  "keywords": [
+    "preflight",
+    "release-gate",
+    "x402",
+    "mcp",
+    "a2mcp",
+    "okx",
+    "signed-receipts"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "bin": {
     "preflight": "dist/index.js"
   },
@@ -10,6 +32,12 @@
     "dist",
     "README.md"
   ],
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json"
   },

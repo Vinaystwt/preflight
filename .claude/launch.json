@@ -1,6 +1,0 @@
-{
-  "version": "0.0.1",
-  "configurations": [
-    { "name": "preflight-v3", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--prefix", "frontend-v3"], "port": 3000 }
-  ]
-}

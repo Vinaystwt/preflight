@@ -1,0 +1,426 @@
+{
+  "summary": {
+    "matched": 9,
+    "unknown": 0,
+    "contradictions": 2,
+    "not_applicable": 3
+  },
+  "decision": "BLOCK",
+  "manifest": {
+    "manifest_hash": "sha256:efa937e5e961f1a241866d0261f30b8ebd482d3f5b981ae6b25f4956f151dfdd",
+    "schema_version": "preflight.release-manifest.v1",
+    "canonical_manifest": {
+      "target": {
+        "method": "POST",
+        "endpoint": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+        "interface_mode": "X402_HTTP",
+        "redirect_policy": "NONE"
+      },
+      "payment": {
+        "mode": "X402",
+        "asset": "0x779ded0c9e1022225f8e0630b35a9b54be713736",
+        "pay_to": "0x7bb9c4d6e06b9dee783eb31ff73d9345803efbd2",
+        "network": "eip155:196",
+        "amount_atomic": "100000"
+      },
+      "release": {
+        "service_name": "preflight-release-gate-staging-staging.up.railway.app"
+      },
+      "schema_version": "preflight.release-manifest.v1"
+    }
+  },
+  "report_id": "pfr_01KXBPJWKVEH1197WGHH34MYVB",
+  "limitations": [
+    "Observable public runtime only",
+    "PreFlight service fee: 0.10 USDT; target buyer-proof spend is disclosed separately in buyer_proof criteria.",
+    "Decision applies only to this runtime snapshot"
+  ],
+  "generated_at": "2026-07-12T17:39:23.667Z",
+  "policy_version": "preflight.release-policy.v1",
+  "schema_version": "preflight.release-report.v1",
+  "criterion_groups": [
+    {
+      "code": "target",
+      "label": "Target",
+      "criteria": [
+        {
+          "code": "TARGET_ENDPOINT",
+          "group": "target",
+          "state": "MATCH",
+          "expected": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+          "observed": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "transport_4200d6ee1611b668",
+              "digest": "sha256:4200d6ee1611b66823ca4fc0e7891bae49c1a07d5cf9e2345bcf130cfe184b8b",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+              "summary": "TRANSPORT runtime evidence",
+              "captured_at": "2026-07-12T17:39:21.959Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "normalized final URL equals manifest endpoint unless an approved same-origin redirect applies"
+        },
+        {
+          "code": "TARGET_METHOD",
+          "group": "target",
+          "state": "MATCH",
+          "expected": "POST",
+          "observed": 402,
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "transport_4200d6ee1611b668",
+              "digest": "sha256:4200d6ee1611b66823ca4fc0e7891bae49c1a07d5cf9e2345bcf130cfe184b8b",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+              "summary": "TRANSPORT runtime evidence",
+              "captured_at": "2026-07-12T17:39:21.959Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "observable POST request completes with an HTTP response"
+        },
+        {
+          "code": "REDIRECT_POLICY",
+          "group": "target",
+          "state": "MATCH",
+          "expected": "NONE",
+          "observed": [],
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "transport_4200d6ee1611b668",
+              "digest": "sha256:4200d6ee1611b66823ca4fc0e7891bae49c1a07d5cf9e2345bcf130cfe184b8b",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+              "summary": "TRANSPORT runtime evidence",
+              "captured_at": "2026-07-12T17:39:21.959Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "observed redirects comply with NONE or SAME_ORIGIN"
+        }
+      ]
+    },
+    {
+      "code": "interface",
+      "label": "Interface",
+      "criteria": [
+        {
+          "code": "INTERFACE_MODE",
+          "group": "interface",
+          "state": "MATCH",
+          "expected": "X402_HTTP",
+          "observed": "HTTP",
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "transport_4200d6ee1611b668",
+              "digest": "sha256:4200d6ee1611b66823ca4fc0e7891bae49c1a07d5cf9e2345bcf130cfe184b8b",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+              "summary": "TRANSPORT runtime evidence",
+              "captured_at": "2026-07-12T17:39:21.959Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "MCP evidence is present exactly when the declared mode includes MCP"
+        },
+        {
+          "code": "MCP_URL",
+          "group": "interface",
+          "state": "NOT_APPLICABLE",
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "UNAVAILABLE"
+          ],
+          "evidence_refs": [],
+          "comparison_rule": "MCP initialize and tools/list succeed at the confirmed MCP URL"
+        }
+      ]
+    },
+    {
+      "code": "payment",
+      "label": "Payment",
+      "criteria": [
+        {
+          "code": "PAYMENT_MODE",
+          "group": "payment",
+          "state": "MATCH",
+          "expected": "X402",
+          "observed": "X402",
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "x402_8cc4a50d32bd334f",
+              "digest": "sha256:8cc4a50d32bd334f7be52d60217e275c3461cabbad751b94b9b0e12e6e3ddaac",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+              "summary": "X402 runtime evidence",
+              "captured_at": "2026-07-12T17:39:21.986Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "FREE has no 402; X402 has status 402 and a parseable accepts array"
+        },
+        {
+          "code": "PAYMENT_NETWORK",
+          "group": "payment",
+          "state": "MATCH",
+          "expected": "eip155:196",
+          "observed": [
+            "eip155:196"
+          ],
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "x402_8cc4a50d32bd334f",
+              "digest": "sha256:8cc4a50d32bd334f7be52d60217e275c3461cabbad751b94b9b0e12e6e3ddaac",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+              "summary": "X402 runtime evidence",
+              "captured_at": "2026-07-12T17:39:21.986Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "at least one accepts entry has the exact network"
+        },
+        {
+          "code": "PAYMENT_ASSET",
+          "group": "payment",
+          "state": "MATCH",
+          "expected": "0x779ded0c9e1022225f8e0630b35a9b54be713736",
+          "observed": [
+            "0x779ded0c9e1022225f8e0630b35a9b54be713736"
+          ],
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "x402_8cc4a50d32bd334f",
+              "digest": "sha256:8cc4a50d32bd334f7be52d60217e275c3461cabbad751b94b9b0e12e6e3ddaac",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+              "summary": "X402 runtime evidence",
+              "captured_at": "2026-07-12T17:39:21.986Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "at least one accepts entry has the exact asset"
+        },
+        {
+          "code": "PAYMENT_AMOUNT",
+          "group": "payment",
+          "state": "MATCH",
+          "expected": "100000",
+          "observed": [
+            "100000"
+          ],
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "x402_8cc4a50d32bd334f",
+              "digest": "sha256:8cc4a50d32bd334f7be52d60217e275c3461cabbad751b94b9b0e12e6e3ddaac",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+              "summary": "X402 runtime evidence",
+              "captured_at": "2026-07-12T17:39:21.986Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "at least one accepts entry has the exact atomic amount"
+        },
+        {
+          "code": "PAYMENT_PAY_TO",
+          "group": "payment",
+          "state": "MATCH",
+          "expected": "0x7bb9c4d6e06b9dee783eb31ff73d9345803efbd2",
+          "observed": [
+            "0x7bb9c4d6e06b9dee783eb31ff73d9345803efbd2"
+          ],
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "x402_8cc4a50d32bd334f",
+              "digest": "sha256:8cc4a50d32bd334f7be52d60217e275c3461cabbad751b94b9b0e12e6e3ddaac",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+              "summary": "X402 runtime evidence",
+              "captured_at": "2026-07-12T17:39:21.986Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "at least one accepts entry has the exact payTo address"
+        }
+      ]
+    },
+    {
+      "code": "contract",
+      "label": "Contract",
+      "criteria": [
+        {
+          "code": "REQUEST_SCHEMA",
+          "group": "contract",
+          "state": "NOT_APPLICABLE",
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "UNAVAILABLE"
+          ],
+          "evidence_refs": [],
+          "comparison_rule": "declared request schema equals the observable MCP input schema"
+        },
+        {
+          "code": "RESPONSE_SCHEMA",
+          "group": "contract",
+          "state": "NOT_APPLICABLE",
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "UNAVAILABLE"
+          ],
+          "evidence_refs": [],
+          "comparison_rule": "required response schema equals safely observable output schema"
+        }
+      ]
+    },
+    {
+      "code": "buyer_proof",
+      "label": "Buyer_proof",
+      "criteria": [
+        {
+          "code": "BUYER_SETTLEMENT",
+          "group": "buyer_proof",
+          "state": "CONTRADICTION",
+          "expected": true,
+          "observed": "BUYER_TERMS_CHANGED",
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "consequence": "PreFlight could not prove that a real buyer can complete payment.",
+          "remediation": "Fix the target payment replay/settlement flow and rerun with buyer proof authorized.",
+          "evidence_refs": [
+            {
+              "id": "buyer_proof_5461483d693903ed",
+              "digest": "sha256:5461483d693903ed5a8021795e16d1e2d148e25a699f74176f9156fdabaeead4",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+              "summary": "BUYER_PROOF runtime evidence",
+              "captured_at": "2026-07-12T17:39:23.667Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "authorized outbound x402 proof settles to the declared target payTo"
+        },
+        {
+          "code": "BUYER_DELIVERY",
+          "group": "buyer_proof",
+          "state": "CONTRADICTION",
+          "expected": true,
+          "observed": "BUYER_TERMS_CHANGED",
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "consequence": "A paid buyer may not receive the promised resource or duplicate payment replay is unsafe.",
+          "remediation": "Return a successful paid response and reject duplicate payment payloads.",
+          "evidence_refs": [
+            {
+              "id": "buyer_proof_5461483d693903ed",
+              "digest": "sha256:5461483d693903ed5a8021795e16d1e2d148e25a699f74176f9156fdabaeead4",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+              "summary": "BUYER_PROOF runtime evidence",
+              "captured_at": "2026-07-12T17:39:23.667Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "authorized outbound x402 proof delivers a successful paid response and rejects duplicate replay"
+        }
+      ]
+    }
+  ],
+  "runtime_snapshot": {
+    "final_url": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+    "captured_at": "2026-07-12T17:39:23.667Z",
+    "requested_url": "https://preflight-release-gate-staging-staging.up.railway.app/stage3-fixtures/terms-change",
+    "snapshot_hash": "sha256:807da292403e97e69e9833ee997aae0522835782351a925d029a98d15bbe266c",
+    "build_identifier": "1191051"
+  },
+  "report_expires_at": "2026-08-11T17:39:23.843Z",
+  "report_access": {
+    "report_url": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/reports/pfr_01KXBPJWKVEH1197WGHH34MYVB",
+    "access_token": "TEST_FIXTURE_TOKEN_placeholder_0000000000000"
+  },
+  "receipt": {
+    "receipt_id": "rcpt_block00000000000000000000000000",
+    "payload": {
+      "type": "preflight.receipt.v1",
+      "receipt_id": "rcpt_df8dc0000d801c4880d8502b5fd10cff",
+      "report_id": "pfr_01KXBPJWKVEH1197WGHH34MYVB",
+      "decision": "BLOCK",
+      "manifest_hash": "sha256:a5af0e35286c8adc7ed4cd116f29c431e7babb2d9ec0ec7b6f07ef40bfbb4775",
+      "snapshot_hash": "sha256:a05407c4280d721724c223f8f0aa05f99d773efbf1b32b03144dca75cb4fb4e2",
+      "policy_version": "preflight.release-policy.v1",
+      "settlement_ref": "0xREDACTED_PRIVATE_KEY",
+      "payer": "0x3a3592FC3E8DE724169295a25865c9694de3DaB5",
+      "price_usdt": "0.10",
+      "target_fingerprint": "sha256:4bdb4b6c1b6b981d9b495553fe1a1b8d696aed5e8724c7a86c5f190487e06007",
+      "issued_at": "2026-07-13T08:25:31.816Z",
+      "key_id": "preflight-v4-staging-20260713",
+      "chain_anchor": null
+    },
+    "signature": "PVjm2j7zbULnyY/wC6G3mNv0Bm2uhqNKksHFKPgLPsEofi0cPy3IBGYknCv2oi0vcv5EJe58u0LdlqiptpjuAQ==",
+    "signature_alg": "Ed25519",
+    "key_id": "preflight-v4-staging-20260713",
+    "verify": {
+      "canonicalization": "preflight.canonical-json.v1",
+      "payload_hash": "sha256:f1afc114475855dc6499337ffbfea53f8ca888aa094f75828996d5a62bde0fc8",
+      "pubkeys_url": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/pubkeys"
+    }
+  },
+  "badge_url": null,
+  "chain_anchor_tx": null
+}

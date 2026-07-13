@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { encodePaymentResponseHeader } from "@okxweb3/x402-core/http";
 import { loadConfig } from "../src/config.js";
@@ -8,7 +9,7 @@ import type { ReleaseRepository } from "../src/release/repository.js";
 import { mountReleaseGate } from "../src/routes/release-gate.js";
 import { manifestFixture } from "./helpers/manifest.js";
 
-const buyerKey = "0xREDACTED_PRIVATE_KEY";
+const buyerKey = `0x${createHash("sha256").update("preflight-test-buyer-key").digest("hex")}` as `0x${string}`;
 const payTo = "0x7bb9c4d6e06b9dee783eb31ff73d9345803efbd2";
 const requirement = (amount = "100000") => ({ scheme: "exact", network: "eip155:196", amount, asset: manifestFixture.payment.asset, payTo, maxTimeoutSeconds: 300, extra: { name: "USD₮0", version: "1" } });
 const header = (amount = "100000") => Buffer.from(JSON.stringify({ x402Version: 2, accepts: [requirement(amount)] })).toString("base64");

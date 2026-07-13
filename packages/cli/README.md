@@ -1,14 +1,22 @@
 # PreFlight CLI
 
-Publish-ready v0.1.0 CLI for the PreFlight Release Gate.
+Command-line client for PreFlight Release Gate.
 
 ```bash
 preflight verify https://api.example.com/paid-route --wallet-key 0x... --json
+preflight verify-receipt rcpt_... --json
 ```
 
-Environment alternatives:
+The `verify` command pays PreFlight's x402 challenge from the provided wallet and returns the private report envelope. The `verify-receipt` command checks a public receipt's canonical payload hash and Ed25519 signature against PreFlight's published public keys.
 
-- `PREFLIGHT_API_BASE` defaults to `https://api.usepreflight.xyz`
-- `PREFLIGHT_WALLET_KEY` can supply the x402 buyer key instead of `--wallet-key`
+Exit codes:
 
-The CLI pays the PreFlight verification fee with the OKX x402 fetch wrapper, then prints the private capability URL and decision.
+- `0`: `RELEASE`, or receipt valid
+- `1`: `BLOCK`
+- `2`: `UNKNOWN`
+- `3`: infrastructure or verification error
+
+Environment:
+
+- `PREFLIGHT_API_BASE`: defaults to `https://api.usepreflight.xyz`
+- `PREFLIGHT_WALLET_KEY`: alternative to `--wallet-key`

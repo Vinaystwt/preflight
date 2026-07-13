@@ -1,0 +1,400 @@
+{
+  "summary": {
+    "matched": 9,
+    "contradictions": 0,
+    "unknown": 2,
+    "not_applicable": 3
+  },
+  "decision": "UNKNOWN",
+  "manifest": {
+    "manifest_hash": "sha256:a5af0e35286c8adc7ed4cd116f29c431e7babb2d9ec0ec7b6f07ef40bfbb4775",
+    "schema_version": "preflight.release-manifest.v1",
+    "canonical_manifest": {
+      "target": {
+        "method": "POST",
+        "endpoint": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+        "interface_mode": "X402_HTTP",
+        "redirect_policy": "NONE"
+      },
+      "payment": {
+        "mode": "X402",
+        "asset": "0x779ded0c9e1022225f8e0630b35a9b54be713736",
+        "pay_to": "0x7bb9c4d6e06b9dee783eb31ff73d9345803efbd2",
+        "network": "eip155:196",
+        "amount_atomic": "100000"
+      },
+      "release": {
+        "service_name": "preflight-release-gate-staging-staging.up.railway.app"
+      },
+      "schema_version": "preflight.release-manifest.v1"
+    }
+  },
+  "report_id": "pfr_01KXUNKNOWNFIXTURE0000000",
+  "limitations": [
+    "Observable public runtime only",
+    "PreFlight service fee: 0.10 USDT; target buyer-proof spend is disclosed separately in buyer_proof criteria.",
+    "Decision applies only to this runtime snapshot"
+  ],
+  "generated_at": "2026-07-12T17:39:02.634Z",
+  "policy_version": "preflight.release-policy.v1",
+  "schema_version": "preflight.release-report.v1",
+  "criterion_groups": [
+    {
+      "code": "target",
+      "label": "Target",
+      "criteria": [
+        {
+          "code": "TARGET_ENDPOINT",
+          "group": "target",
+          "state": "MATCH",
+          "expected": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+          "observed": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "transport_2d5be6dd06ac280b",
+              "digest": "sha256:2d5be6dd06ac280bfc30a7a2804915b03601aa67cde23ae52390f855f30895c7",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+              "summary": "TRANSPORT runtime evidence",
+              "captured_at": "2026-07-12T17:38:41.439Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "normalized final URL equals manifest endpoint unless an approved same-origin redirect applies"
+        },
+        {
+          "code": "TARGET_METHOD",
+          "group": "target",
+          "state": "MATCH",
+          "expected": "POST",
+          "observed": 402,
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "transport_2d5be6dd06ac280b",
+              "digest": "sha256:2d5be6dd06ac280bfc30a7a2804915b03601aa67cde23ae52390f855f30895c7",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+              "summary": "TRANSPORT runtime evidence",
+              "captured_at": "2026-07-12T17:38:41.439Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "observable POST request completes with an HTTP response"
+        },
+        {
+          "code": "REDIRECT_POLICY",
+          "group": "target",
+          "state": "MATCH",
+          "expected": "NONE",
+          "observed": [],
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "transport_2d5be6dd06ac280b",
+              "digest": "sha256:2d5be6dd06ac280bfc30a7a2804915b03601aa67cde23ae52390f855f30895c7",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+              "summary": "TRANSPORT runtime evidence",
+              "captured_at": "2026-07-12T17:38:41.439Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "observed redirects comply with NONE or SAME_ORIGIN"
+        }
+      ]
+    },
+    {
+      "code": "interface",
+      "label": "Interface",
+      "criteria": [
+        {
+          "code": "INTERFACE_MODE",
+          "group": "interface",
+          "state": "MATCH",
+          "expected": "X402_HTTP",
+          "observed": "HTTP",
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "transport_2d5be6dd06ac280b",
+              "digest": "sha256:2d5be6dd06ac280bfc30a7a2804915b03601aa67cde23ae52390f855f30895c7",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+              "summary": "TRANSPORT runtime evidence",
+              "captured_at": "2026-07-12T17:38:41.439Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "MCP evidence is present exactly when the declared mode includes MCP"
+        },
+        {
+          "code": "MCP_URL",
+          "group": "interface",
+          "state": "NOT_APPLICABLE",
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "UNAVAILABLE"
+          ],
+          "evidence_refs": [],
+          "comparison_rule": "MCP initialize and tools/list succeed at the confirmed MCP URL"
+        }
+      ]
+    },
+    {
+      "code": "payment",
+      "label": "Payment",
+      "criteria": [
+        {
+          "code": "PAYMENT_MODE",
+          "group": "payment",
+          "state": "MATCH",
+          "expected": "X402",
+          "observed": "X402",
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "x402_8cc4a50d32bd334f",
+              "digest": "sha256:8cc4a50d32bd334f7be52d60217e275c3461cabbad751b94b9b0e12e6e3ddaac",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+              "summary": "X402 runtime evidence",
+              "captured_at": "2026-07-12T17:38:42.178Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "FREE has no 402; X402 has status 402 and a parseable accepts array"
+        },
+        {
+          "code": "PAYMENT_NETWORK",
+          "group": "payment",
+          "state": "MATCH",
+          "expected": "eip155:196",
+          "observed": [
+            "eip155:196"
+          ],
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "x402_8cc4a50d32bd334f",
+              "digest": "sha256:8cc4a50d32bd334f7be52d60217e275c3461cabbad751b94b9b0e12e6e3ddaac",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+              "summary": "X402 runtime evidence",
+              "captured_at": "2026-07-12T17:38:42.178Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "at least one accepts entry has the exact network"
+        },
+        {
+          "code": "PAYMENT_ASSET",
+          "group": "payment",
+          "state": "MATCH",
+          "expected": "0x779ded0c9e1022225f8e0630b35a9b54be713736",
+          "observed": [
+            "0x779ded0c9e1022225f8e0630b35a9b54be713736"
+          ],
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "x402_8cc4a50d32bd334f",
+              "digest": "sha256:8cc4a50d32bd334f7be52d60217e275c3461cabbad751b94b9b0e12e6e3ddaac",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+              "summary": "X402 runtime evidence",
+              "captured_at": "2026-07-12T17:38:42.178Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "at least one accepts entry has the exact asset"
+        },
+        {
+          "code": "PAYMENT_AMOUNT",
+          "group": "payment",
+          "state": "UNKNOWN",
+          "expected": "100000",
+          "observed": null,
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "x402_8cc4a50d32bd334f",
+              "digest": "sha256:8cc4a50d32bd334f7be52d60217e275c3461cabbad751b94b9b0e12e6e3ddaac",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+              "summary": "X402 runtime evidence",
+              "captured_at": "2026-07-12T17:38:42.178Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "at least one accepts entry has the exact atomic amount",
+          "limitation": "No value was observable without a paid probe input.",
+          "remediation": "Re-run with buyer proof authorized so the value can be observed."
+        },
+        {
+          "code": "PAYMENT_PAY_TO",
+          "group": "payment",
+          "state": "UNKNOWN",
+          "expected": "0x7bb9c4d6e06b9dee783eb31ff73d9345803efbd2",
+          "observed": null,
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "x402_8cc4a50d32bd334f",
+              "digest": "sha256:8cc4a50d32bd334f7be52d60217e275c3461cabbad751b94b9b0e12e6e3ddaac",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+              "summary": "X402 runtime evidence",
+              "captured_at": "2026-07-12T17:38:42.178Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "at least one accepts entry has the exact payTo address",
+          "limitation": "No value was observable without a paid probe input.",
+          "remediation": "Re-run with buyer proof authorized so the value can be observed."
+        }
+      ]
+    },
+    {
+      "code": "contract",
+      "label": "Contract",
+      "criteria": [
+        {
+          "code": "REQUEST_SCHEMA",
+          "group": "contract",
+          "state": "NOT_APPLICABLE",
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "UNAVAILABLE"
+          ],
+          "evidence_refs": [],
+          "comparison_rule": "declared request schema equals the observable MCP input schema"
+        },
+        {
+          "code": "RESPONSE_SCHEMA",
+          "group": "contract",
+          "state": "NOT_APPLICABLE",
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "UNAVAILABLE"
+          ],
+          "evidence_refs": [],
+          "comparison_rule": "required response schema equals safely observable output schema"
+        }
+      ]
+    },
+    {
+      "code": "buyer_proof",
+      "label": "Buyer_proof",
+      "criteria": [
+        {
+          "code": "BUYER_SETTLEMENT",
+          "group": "buyer_proof",
+          "state": "MATCH",
+          "expected": true,
+          "observed": {
+            "status": "DELIVERED",
+            "settlement_reference": "target_report_published"
+          },
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "buyer_proof_ce75a3b26e7f8d97",
+              "digest": "sha256:ce75a3b26e7f8d97fcd3f274d4d8fa36e648ae5d950afedf1d8e095b24f66586",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+              "summary": "BUYER_PROOF runtime evidence",
+              "captured_at": "2026-07-12T17:39:02.634Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "authorized outbound x402 proof settles to the declared target payTo"
+        },
+        {
+          "code": "BUYER_DELIVERY",
+          "group": "buyer_proof",
+          "state": "MATCH",
+          "expected": true,
+          "observed": {
+            "status": "DELIVERED",
+            "delivery_status": 200,
+            "duplicate_replay_status": 409
+          },
+          "mandatory": true,
+          "provenance": [
+            "OPERATOR_SUPPLIED",
+            "OBSERVED",
+            "DERIVED"
+          ],
+          "evidence_refs": [
+            {
+              "id": "buyer_proof_ce75a3b26e7f8d97",
+              "digest": "sha256:ce75a3b26e7f8d97fcd3f274d4d8fa36e648ae5d950afedf1d8e095b24f66586",
+              "source": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+              "summary": "BUYER_PROOF runtime evidence",
+              "captured_at": "2026-07-12T17:39:02.634Z",
+              "freshness_seconds": 0
+            }
+          ],
+          "comparison_rule": "authorized outbound x402 proof delivers a successful paid response and rejects duplicate replay"
+        }
+      ]
+    }
+  ],
+  "runtime_snapshot": {
+    "final_url": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+    "captured_at": "2026-07-12T17:39:02.634Z",
+    "requested_url": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/verify-release",
+    "snapshot_hash": "sha256:a05407c4280d721724c223f8f0aa05f99d773efbf1b32b03144dca75cb4fb4e2",
+    "build_identifier": "1191051"
+  },
+  "report_expires_at": "2026-08-11T17:39:02.813Z",
+  "report_access": {
+    "report_url": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/reports/pfr_01KXBPHHDQZHK7X2HA4CV051PN",
+    "access_token": "TEST_FIXTURE_TOKEN_placeholder_0000000000000"
+  }
+}
