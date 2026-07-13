@@ -1,0 +1,12 @@
+{
+  "schema_version": "preflight.pubkeys.v1",
+  "keys": [
+    {
+      "key_id": "preflight-v4-staging-20260713",
+      "algorithm": "Ed25519",
+      "public_key_base64": "MCowBQYDK2VwAyEALwk6yuiMrz+j73j3kWt3khla5DLcqFtbvTO/yIWZgYM=",
+      "status": "active",
+      "created_at": "2026-07-13T03:58:29.331Z"
+    }
+  ]
+}

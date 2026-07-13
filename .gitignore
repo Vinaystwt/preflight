@@ -20,5 +20,12 @@ test-results/
 *.pem
 *.key
 
-# obsolete local frontend worktree preserved in audit archives, not canonical source
-frontend-v2/
+# legacy local frontend worktrees preserved in private artifacts, not public source
+frontend/
+frontend-v*/
+
+# web app generated output
+web/.next/
+web/playwright-report/
+web/test-results/
+web/tests/shots/

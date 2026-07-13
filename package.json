@@ -13,12 +13,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "migrate": "tsx src/db/migrate.ts",
-    "selftest": "tsx scripts/selftest.ts",
-    "selftest:stage2": "tsx scripts/stage2-selftest.ts",
-    "selftest:stage4": "tsx scripts/stage4-selftest.ts",
-    "scan-market": "tsx scripts/scan-market.ts"
-    ,"generate:openapi": "tsx scripts/generate-openapi.ts"
-    ,"selftest:release": "tsx scripts/selftest-release.ts"
+    "generate:openapi": "tsx scripts/generate-openapi.ts",
+    "selftest:release": "tsx scripts/selftest-release.ts",
+    "web:lint": "npm run lint --prefix web",
+    "web:build": "npm run build --prefix web",
+    "cli:build": "npm run build --prefix packages/cli"
   },
   "dependencies": {
     "@fastify/rate-limit": "^11.1.0",

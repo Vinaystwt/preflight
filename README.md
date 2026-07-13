@@ -1,28 +1,224 @@
-# PreFlight backend
+# PreFlight
 
-PreFlight is an x402-paid conformance service for OKX.AI Agent Service Providers. Paid execution is exposed as HTTP `POST /api/v1/*` routes; `/mcp` is free, discovery-only Streamable HTTP and returns paid-route pointers.
+**A release gate for paid agent services.** PreFlight behaves like a real customer: it discovers a live service, verifies the x402 buyer journey, and returns a criterion-level `RELEASE`, `BLOCK`, or `UNKNOWN` decision with portable signed proof.
 
-## Runtime
+[Live product](https://preflight-web-bice.vercel.app) · [Hosted API](https://api.usepreflight.xyz/api/v1/service) · [API docs](docs/api.md) · [MCP docs](docs/mcp.md) · [CLI](docs/cli.md) · [Receipts](docs/receipts.md)
 
-```sh
+![PreFlight product overview](docs/assets/preflight-home.png)
+
+## Why PreFlight exists
+
+An endpoint being online is not enough. A paid agent service can still fail when a buyer tries to use it:
+
+- the 402 challenge can advertise the wrong network, asset, amount, or `payTo`;
+- the declared contract can drift from the live response;
+- settlement can succeed while delivery fails;
+- a duplicate payment replay can accidentally deliver twice;
+- a generic score can hide exactly what has to be fixed.
+
+PreFlight turns that into a release gate. It compares declared intent against observed production behavior, acts as a bounded buyer when authorized, and returns evidence-backed criteria instead of a vague badge.
+
+![PreFlight release report](docs/assets/preflight-release-report.png)
+
+## How it works
+
+```mermaid
+sequenceDiagram
+  actor Dev as Developer
+  participant Web as Web / CLI / MCP
+  participant API as PreFlight API
+  participant Target as Agent service
+  participant X as x402 / X Layer
+  participant DB as Report store
+
+  Dev->>Web: Submit endpoint or manifest
+  Web->>API: Discovery request
+  API->>Target: Observe HTTPS, MCP, x402 challenge
+  API-->>Web: Proposed manifest with provenance
+  Dev->>API: Confirm release check
+  API-->>Dev: x402 payment challenge
+  Dev->>API: Paid replay
+  opt Authorized buyer proof
+    API->>Target: Pay as bounded buyer
+    Target->>X: Settle payment
+    Target-->>API: Deliver response
+  end
+  API->>API: Evaluate criteria
+  API->>DB: Publish private report after settlement
+  API-->>Dev: RELEASE / BLOCK / UNKNOWN + signed receipt
+```
+
+## Key capabilities
+
+- **Discovery-first workflow** — inspect a live endpoint before paying for a full verification.
+- **Proposed manifest with provenance** — every inferred field says where it came from and whether it needs confirmation.
+- **Real buyer proof** — with owner attestation, PreFlight can pay and take delivery as a bounded buyer.
+- **Deterministic decision model** — `RELEASE`, `BLOCK`, or `UNKNOWN`, built from criterion states.
+- **Exact remediation** — contradictions include observed evidence and a fix.
+- **Signed receipts** — Ed25519 receipt over canonical JSON, verifiable outside the report page.
+- **Private reports** — bearer capability tokens; report IDs are not public access.
+- **MCP wrapper** — hosted MCP endpoint for agent-native discovery and paid tool invocation.
+- **Embeddable badge and gallery** — opt-in proof surfaces for release-ready services.
+
+## Decision model
+
+| Decision | Meaning |
+| --- | --- |
+| `RELEASE` | Mandatory criteria match the declared release and no blocking contradiction was observed. |
+| `BLOCK` | At least one mandatory criterion contradicts the release. |
+| `UNKNOWN` | PreFlight could not safely prove the criterion either way. Unknown is honest; it is never silently upgraded. |
+
+Criteria use:
+
+- `MATCH` — observed production behavior matches the declaration;
+- `CONTRADICTION` — observed production behavior conflicts with the declaration;
+- `UNKNOWN` — not enough safe evidence;
+- `NOT_APPLICABLE` — criterion does not apply to this surface.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  Web[Web app] --> API[Fastify API]
+  CLI[CLI] --> API
+  MCP[MCP clients] --> MCPRoute[Hosted Streamable HTTP MCP]
+  MCPRoute --> API
+  API --> Safe[Safe egress + discovery]
+  Safe --> Target[Agent service]
+  API --> Seller[x402 seller gate]
+  API --> Buyer[Bounded x402 buyer]
+  Buyer --> Target
+  Seller --> X[X Layer / x402 facilitator]
+  Buyer --> X
+  API --> Criteria[Criterion engine]
+  Criteria --> Reports[(Postgres reports)]
+  API --> Receipts[Ed25519 receipt signer]
+  Receipts --> Proof[Receipts / badges / gallery]
+```
+
+## Quick start
+
+### Web
+
+Open [preflight-web-bice.vercel.app](https://preflight-web-bice.vercel.app), paste a public service endpoint, and review the proposed manifest. Discovery is free; full `verify_release` checks require x402 payment.
+
+### API
+
+```bash
+curl -s https://api.usepreflight.xyz/api/v1/service | jq
+curl -s https://api.usepreflight.xyz/api/v1/contracts/release-manifest/v1 | jq
+```
+
+`POST /api/v1/verify-release` is a paid x402 endpoint. An unpaid request returns an HTTP 402 challenge; a funded agent replays with `PAYMENT-SIGNATURE`.
+
+See [docs/api.md](docs/api.md).
+
+### MCP
+
+PreFlight’s MCP server is hosted; installing the CLI is not required.
+
+```json
+{
+  "mcpServers": {
+    "preflight": {
+      "url": "https://api.usepreflight.xyz/mcp"
+    }
+  }
+}
+```
+
+See [docs/mcp.md](docs/mcp.md).
+
+### CLI
+
+The CLI source is prepared in [`packages/cli`](packages/cli). npm publication is pending verified access to the `@usepreflight` npm scope; until that is complete, use the hosted web, API, or MCP surfaces for production checks.
+
+Local smoke:
+
+```bash
+npm run build --prefix packages/cli
+node packages/cli/dist/index.js --help
+node packages/cli/dist/index.js verify-receipt web/tests/fixtures/receipt.json --pubkeys-file web/tests/fixtures/pubkeys.json
+```
+
+## Signed receipts
+
+Every completed check can issue a signed receipt:
+
+- payload is canonical JSON with sorted keys;
+- payload hash is SHA-256;
+- signature algorithm is Ed25519;
+- public keys are served at `GET /api/v1/pubkeys`;
+- public receipts are served at `GET /api/v1/receipts/{receipt_id}`.
+
+![Signed receipt inspector](docs/assets/preflight-receipt-inspector.png)
+
+See [docs/cli.md](docs/cli.md) and [docs/receipts.md](docs/receipts.md).
+
+## Security and trust boundaries
+
+PreFlight is a verifier, not a custody product.
+
+- Private reports require capability tokens.
+- Reports publish after the required settlement state.
+- Probe egress refuses private/internal targets and unsafe redirects.
+- Buyer proof requires owner attestation and spend caps.
+- Terms-hash drift aborts buyer proof before payment.
+- Wallets are separated by role.
+- Ambiguous evidence returns `UNKNOWN`, not a false release.
+
+See [docs/security.md](docs/security.md).
+
+## Local development
+
+Backend:
+
+```bash
 npm ci
+npm run typecheck
 npm run build
+npm test -- --run
 npm run migrate
 npm start
 ```
 
-The production URL is frozen at `https://api.usepreflight.xyz`. Railway builds the Dockerfile, runs `node dist/db/migrate.js` before deployment, and starts `node dist/server.js`.
+Web:
 
-## Badge link
-
-A certified GO target can embed `https://api.usepreflight.xyz/badge/<target_id>.svg`. The SVG links to `https://api.usepreflight.xyz/r/<latest_report_id>` using an SVG anchor, so no separate landing-page route or query parameter is required. Unknown, ineligible, and non-GO targets return 404.
-
-## Market scanner
-
-The scanner accepts a JSON array or newline-delimited file of public HTTPS service endpoints. It runs transport, MCP, and x402 probes only; it never constructs a buyer or makes a paid replay.
-
-```sh
-npm run scan-market -- endpoints.json
+```bash
+cd web
+npm ci
+npm run lint
+npm run build
+npx tsc --noEmit
+npx playwright test --reporter=list
 ```
 
-Only GO endpoint URLs are emitted. Failing endpoint identities are excluded from aggregate output.
+CLI:
+
+```bash
+npm run build --prefix packages/cli
+(cd packages/cli && npm pack --dry-run)
+```
+
+## Project structure
+
+```text
+src/                 Fastify API, MCP, release criteria, payments, receipts
+src/db/migrations/   Additive database migrations
+web/                 Next.js web application
+packages/cli/        CLI package source
+docs/                Public API, MCP, receipt, security and operations docs
+test/                Backend and release-gate tests
+```
+
+## Status and limitations
+
+- Agent ID resolution is intentionally conservative unless an authoritative listing resolver is configured.
+- Gallery entries are opt-in.
+- Chain anchoring is disabled unless explicitly configured and proven.
+- Browser receipt verification may fall back honestly if local Ed25519 support is unavailable.
+- The CLI is prepared for publication but not presented as published until npm registry verification succeeds.
+
+## License
+
+No public license has been selected yet. Do not assume open-source reuse rights until a license file is added.

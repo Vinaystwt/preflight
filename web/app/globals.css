@@ -1,0 +1,272 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+  PreFlight web app — the product design system.
+  Cool graphite undertone, violet is the only decorative accent, verdict
+  colors are semantic-only. The app reads as one connected diagnostic instrument.
+*/
+
+@theme inline {
+  /* surfaces (never pure black) */
+  --color-canvas: var(--canvas);
+  --color-base: var(--base);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-raised: var(--raised);
+  --color-hover: var(--hover);
+
+  /* text (never pure white) */
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-tertiary: var(--text-tertiary);
+  --color-disabled: var(--text-disabled);
+  --color-inverse: var(--text-inverse);
+
+  /* brand / action — violet only */
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-pressed: var(--accent-pressed);
+  --color-accent-focus: var(--accent-focus);
+
+  /* verdict semantic roles */
+  --color-release: var(--release-fg);
+  --color-release-bg: var(--release-bg);
+  --color-release-border: var(--release-border);
+  --color-block: var(--block-fg);
+  --color-block-bg: var(--block-bg);
+  --color-block-border: var(--block-border);
+  --color-warning: var(--warning-fg);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+  --color-pending: var(--pending-fg);
+  --color-pending-bg: var(--pending-bg);
+  --color-pending-border: var(--pending-border);
+
+  --color-sep: var(--sep);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  /* shadcn token remap onto the PreFlight palette */
+  --color-background: var(--canvas);
+  --color-foreground: var(--text-primary);
+  --color-card: var(--surface-1);
+  --color-card-foreground: var(--text-primary);
+  --color-popover: var(--surface-2);
+  --color-popover-foreground: var(--text-primary);
+  --color-muted: var(--surface-2);
+  --color-muted-foreground: var(--text-secondary);
+  --color-input: var(--border);
+  --color-ring: var(--accent-focus);
+  --color-destructive: var(--block-fg);
+
+  --font-display: var(--font-display);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-mono);
+
+  /* radii — 6 or 8 only */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+
+  /* motion */
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.7, 0, 0.84, 0);
+}
+
+:root {
+  --canvas: #080a0d;
+  --base: #0b0e12;
+  --surface-1: #101419;
+  --surface-2: #151a20;
+  --raised: #1a2027;
+  --hover: #202730;
+
+  --text-primary: #f3f5f7;
+  --text-secondary: #a9b2bc;
+  --text-tertiary: #84909c;
+  --text-disabled: #4b5560;
+  --text-inverse: #090b0e;
+
+  --accent: #9b8cff;
+  --accent-hover: #b0a5ff;
+  --accent-pressed: #7d6def;
+  --accent-focus: #b8aeff;
+  --accent-muted-bg: rgba(155, 140, 255, 0.12);
+  --accent-border: rgba(155, 140, 255, 0.34);
+
+  --release-fg: #38d996;
+  --release-bg: #0d2a20;
+  --release-border: #1d684b;
+  --block-fg: #ff5d66;
+  --block-bg: #2b1116;
+  --block-border: #7e2a35;
+  --warning-fg: #f2b84b;
+  --warning-bg: #2b2110;
+  --warning-border: #765a20;
+  --pending-fg: #8b96a3;
+  --pending-bg: #171d23;
+  --pending-border: #38434e;
+
+  --sep: rgba(255, 255, 255, 0.06);
+  --border: #29313a;
+  --border-strong: #3a4551;
+  --top-highlight: rgba(255, 255, 255, 0.035);
+  --modal-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    background: var(--canvas);
+    color-scheme: dark;
+  }
+  body {
+    background: var(--canvas);
+    color: var(--text-primary);
+    font-family: var(--font-ui), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: var(--accent-muted-bg);
+    color: var(--text-primary);
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent-focus);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  .font-mono,
+  code,
+  kbd,
+  samp,
+  pre {
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+}
+
+/* ---- type roles from the frozen scale ---- */
+.t-hero {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(2.75rem, 6vw, 4rem);
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+.t-h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 2.5rem;
+  line-height: 2.75rem;
+  letter-spacing: -0.025em;
+}
+.t-h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 2rem;
+  line-height: 2.375rem;
+  letter-spacing: -0.02em;
+}
+.t-h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.375rem;
+  line-height: 1.75rem;
+  letter-spacing: -0.012em;
+}
+.t-lead {
+  font-family: var(--font-ui);
+  font-weight: 400;
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  letter-spacing: -0.005em;
+}
+.t-body {
+  font-family: var(--font-ui);
+  font-weight: 400;
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+.t-ui {
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+.t-label {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.t-evidence {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 0.78125rem;
+  line-height: 1.125rem;
+}
+.t-metric {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 1.25rem;
+  line-height: 1.625rem;
+  letter-spacing: -0.02em;
+}
+
+@keyframes rail-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.28;
+  }
+  70%,
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+.animate-rail-pulse {
+  animation: rail-pulse 1.8s var(--ease-standard) infinite;
+}
+
+@keyframes receipt-scan {
+  from {
+    transform: translateX(-40%);
+  }
+  to {
+    transform: translateX(320%);
+  }
+}
+.animate-receipt-scan {
+  animation: receipt-scan 0.9s var(--ease-standard) infinite;
+}
+
+/* faint technical grid for the hero backdrop */
+.tech-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+/* instrument surface: 1px border + subtle top-edge highlight, no heavy shadow */
+.panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 0 var(--top-highlight);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
