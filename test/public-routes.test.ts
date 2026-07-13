@@ -58,7 +58,7 @@ describe("public routes", () => {
     const preflight = await app.inject({ method: "OPTIONS", url: "/api/v1/playground_check", headers: { origin: "https://www.usepreflight.xyz" } });
     expect(preflight.statusCode).toBe(204);
     expect(preflight.headers["access-control-allow-origin"]).toBe("https://www.usepreflight.xyz");
-    expect(preflight.headers["access-control-allow-headers"]).toBe("Authorization, Content-Type");
+    expect(preflight.headers["access-control-allow-headers"]).toBe("Authorization, Content-Type, X-Client-Request-Id");
     const releasePreflight = await app.inject({ method: "OPTIONS", url: "/api/v1/reports/pf_test", headers: { origin: "https://preflight.vercel.app" } });
     expect(releasePreflight.statusCode).toBe(204);
     expect(releasePreflight.headers["access-control-allow-origin"]).toBe("https://preflight.vercel.app");

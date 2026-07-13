@@ -34,7 +34,7 @@ export function mountPublicCors(app: FastifyInstance, frontendOrigins: readonly 
       reply.header("access-control-allow-origin", origin);
       reply.header("vary", "Origin");
       reply.header("access-control-allow-methods", "GET, POST, OPTIONS");
-      reply.header("access-control-allow-headers", "Authorization, Content-Type");
+      reply.header("access-control-allow-headers", "Authorization, Content-Type, X-Client-Request-Id");
       reply.header("access-control-max-age", "86400");
     }
   });
