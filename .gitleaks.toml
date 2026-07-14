@@ -1,0 +1,5 @@
+[allowlist]
+description = "PreFlight public-review false positives"
+regexes = [
+  '''idempotency-key'''
+]
