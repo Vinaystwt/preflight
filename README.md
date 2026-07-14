@@ -4,6 +4,8 @@
 
 [Live product](https://usepreflight.xyz) · [Hosted API](https://api.usepreflight.xyz/api/v1/service) · [API docs](docs/api.md) · [MCP docs](docs/mcp.md) · [CLI](docs/cli.md) · [Receipts](docs/receipts.md)
 
+Source is publicly available for review. No license for reuse, modification, or redistribution is granted unless stated otherwise.
+
 ![PreFlight product overview](docs/assets/preflight-home.png)
 
 ## Why PreFlight exists

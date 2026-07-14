@@ -17,8 +17,14 @@ test-results/
 # secrets and local env
 .env
 .env.*
+!.env.example
+.npmrc
 *.pem
 *.key
+*.p12
+*.pfx
+*.tgz
+npm-debug.log*
 
 # legacy local frontend worktrees preserved in private artifacts, not public source
 frontend/
@@ -26,6 +32,7 @@ frontend-v*/
 
 # web app generated output
 web/.next/
+web/.vercel/
 web/playwright-report/
 web/test-results/
 web/tests/shots/
