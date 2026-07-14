@@ -404,7 +404,7 @@
       "manifest_hash": "sha256:a5af0e35286c8adc7ed4cd116f29c431e7babb2d9ec0ec7b6f07ef40bfbb4775",
       "snapshot_hash": "sha256:a05407c4280d721724c223f8f0aa05f99d773efbf1b32b03144dca75cb4fb4e2",
       "policy_version": "preflight.release-policy.v1",
-      "settlement_ref": "0xREDACTED_PRIVATE_KEY",
+      "settlement_ref": "0xREDACTED_SETTLEMENT_REF",
       "payer": "0x3a3592FC3E8DE724169295a25865c9694de3DaB5",
       "price_usdt": "0.10",
       "target_fingerprint": "sha256:4bdb4b6c1b6b981d9b495553fe1a1b8d696aed5e8724c7a86c5f190487e06007",
