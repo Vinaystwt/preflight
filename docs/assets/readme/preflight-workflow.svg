@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="720" viewBox="0 0 1600 720" role="img" aria-labelledby="title desc">
+  <title id="title">PreFlight workflow separating free discovery from paid release verification</title>
+  <desc id="desc">Two-lane workflow: free discovery submits an endpoint, discovers the live contract, and reviews a proposed manifest; paid verification starts the release check, verifies payment settlement and delivery, and returns a verdict with signed proof.</desc>
+  <defs>
+    <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
+      <path d="M44 0H0V44" fill="none" stroke="#2A323C" stroke-width="1" opacity=".28"/>
+    </pattern>
+    <style>
+      .text{fill:#F3F5F7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif}.sub{fill:#AAB3BD;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif}.mono{fill:#84909C;font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}.panel{fill:#11161D}.panel2{fill:#151B23}.line{stroke:#2A323C}.violet{stroke:#9B8CFF}
+    </style>
+  </defs>
+  <rect width="1600" height="720" rx="38" fill="#0B0E12"/>
+  <rect x="28" y="28" width="1544" height="664" rx="30" fill="url(#grid)"/>
+  <text x="86" y="95" class="mono" font-size="16" letter-spacing=".16em">FREE DISCOVERY</text>
+  <text x="86" y="405" class="mono" font-size="16" letter-spacing=".16em" fill="#9B8CFF">PAID VERIFICATION</text>
+  <path d="M86 344H1514" stroke="#2A323C" stroke-width="2"/>
+  <path d="M792 92V628" stroke="#9B8CFF" stroke-width="2" stroke-dasharray="8 12" opacity=".75"/>
+  <text x="812" y="329" class="mono" font-size="14" letter-spacing=".14em">CONFIRM + PAY BOUNDARY</text>
+
+  <g transform="translate(94 138)">
+    <rect width="376" height="150" rx="24" class="panel" stroke="#2A323C"/>
+    <text x="28" y="55" fill="#9B8CFF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Arial,sans-serif" font-size="34" font-weight="800">01</text>
+    <text x="88" y="54" class="text" font-size="25" font-weight="760">Submit endpoint</text>
+    <text x="88" y="92" class="sub" font-size="18">Public endpoint</text>
+  </g>
+  <g transform="translate(506 138)">
+    <rect width="376" height="150" rx="24" class="panel" stroke="#2A323C"/>
+    <text x="28" y="55" fill="#9B8CFF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Arial,sans-serif" font-size="34" font-weight="800">02</text>
+    <text x="88" y="54" class="text" font-size="25" font-weight="760">Discover live contract</text>
+    <text x="88" y="92" class="sub" font-size="18">Observed fields + provenance</text>
+  </g>
+  <g transform="translate(918 138)">
+    <rect width="376" height="150" rx="24" class="panel" stroke="#2A323C"/>
+    <text x="28" y="55" fill="#9B8CFF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Arial,sans-serif" font-size="34" font-weight="800">03</text>
+    <text x="88" y="54" class="text" font-size="25" font-weight="760">Review proposed manifest</text>
+    <text x="88" y="92" class="sub" font-size="18">Developer confirmation</text>
+  </g>
+  <path d="M470 213H506M882 213H918M1294 213H1410" fill="none" class="violet" stroke-width="3" stroke-linecap="round"/>
+
+  <g transform="translate(306 448)">
+    <rect width="376" height="150" rx="24" class="panel" stroke="#2A323C"/>
+    <text x="28" y="55" fill="#9B8CFF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Arial,sans-serif" font-size="34" font-weight="800">04</text>
+    <text x="88" y="54" class="text" font-size="25" font-weight="760">Start release check</text>
+    <text x="88" y="92" class="sub" font-size="18">0.10 USDT via x402</text>
+  </g>
+  <g transform="translate(718 448)">
+    <rect width="376" height="150" rx="24" class="panel" stroke="#2A323C"/>
+    <text x="28" y="55" fill="#9B8CFF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Arial,sans-serif" font-size="34" font-weight="800">05</text>
+    <text x="88" y="54" class="text" font-size="23" font-weight="760">Verify payment, settlement, and delivery</text>
+    <text x="88" y="92" class="sub" font-size="18">Optional bounded buyer proof</text>
+  </g>
+  <g transform="translate(1130 448)">
+    <rect width="376" height="150" rx="24" class="panel" stroke="#2A323C"/>
+    <text x="28" y="55" fill="#9B8CFF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Arial,sans-serif" font-size="34" font-weight="800">06</text>
+    <text x="88" y="54" class="text" font-size="25" font-weight="760">Receive verdict and signed proof</text>
+    <text x="88" y="92" class="sub" font-size="18">Evidence + remediation + receipt</text>
+    <g transform="translate(88 112)">
+      <rect width="70" height="24" rx="12" fill="#153326" stroke="#55D6A5"/><text x="35" y="17" text-anchor="middle" fill="#55D6A5" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Arial,sans-serif" font-size="11" font-weight="800">RELEASE</text>
+      <rect x="82" width="58" height="24" rx="12" fill="#36191F" stroke="#FF6B7A"/><text x="111" y="17" text-anchor="middle" fill="#FF6B7A" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Arial,sans-serif" font-size="11" font-weight="800">BLOCK</text>
+      <rect x="152" width="76" height="24" rx="12" fill="#372B18" stroke="#E7B65C"/><text x="190" y="17" text-anchor="middle" fill="#E7B65C" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Arial,sans-serif" font-size="11" font-weight="800">UNKNOWN</text>
+    </g>
+  </g>
+  <path d="M682 523H718M1094 523H1130" fill="none" class="violet" stroke-width="3" stroke-linecap="round"/>
+</svg>
