@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">PreFlight architecture showing web, CLI, MCP, payment, buyer proof, reports, and receipts</title>
+  <desc id="desc">Four trust-zone architecture diagram showing client surfaces, the PreFlight control plane, external payment and service boundaries, and evidence proof surfaces.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.4" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#84909C"/>
+    </marker>
+    <marker id="arrowV" viewBox="0 0 10 10" refX="8.4" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#9B8CFF"/>
+    </marker>
+    <style>
+      .text{fill:#F3F5F7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif}.sub{fill:#AAB3BD;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif}.mono{fill:#84909C;font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}.zone{fill:#0E1319;stroke:#2A323C}.node{fill:#11161D;stroke:#2A323C}.node2{fill:#151B23;stroke:#2A323C}.edge{fill:none;stroke:#84909C;stroke-width:2.2;marker-end:url(#arrow)}.edgeV{fill:none;stroke:#9B8CFF;stroke-width:2.4;marker-end:url(#arrowV)}
+    </style>
+  </defs>
+  <rect width="1600" height="1000" rx="38" fill="#0B0E12"/>
+  <rect x="46" y="56" width="310" height="844" rx="28" class="zone"/>
+  <rect x="400" y="56" width="480" height="844" rx="28" class="zone"/>
+  <rect x="924" y="56" width="300" height="844" rx="28" class="zone"/>
+  <rect x="1268" y="56" width="286" height="844" rx="28" class="zone"/>
+  <text x="78" y="102" class="mono" font-size="15" letter-spacing=".14em">1 CLIENT SURFACES</text>
+  <text x="432" y="102" class="mono" font-size="15" letter-spacing=".14em">2 PREFLIGHT CONTROL PLANE</text>
+  <text x="956" y="102" class="mono" font-size="15" letter-spacing=".14em">3 EXTERNAL BOUNDARY</text>
+  <text x="1300" y="102" class="mono" font-size="15" letter-spacing=".14em">4 EVIDENCE + PROOF</text>
+
+  <g id="clients">
+    <rect x="84" y="170" width="230" height="72" rx="18" class="node"/><text x="114" y="215" class="text" font-size="23" font-weight="750">Web</text>
+    <rect x="84" y="282" width="230" height="72" rx="18" class="node"/><text x="114" y="327" class="text" font-size="23" font-weight="750">CLI</text>
+    <rect x="84" y="394" width="230" height="72" rx="18" class="node"/><text x="114" y="439" class="text" font-size="23" font-weight="750">MCP clients</text>
+    <rect x="84" y="506" width="230" height="72" rx="18" class="node"/><text x="114" y="551" class="text" font-size="23" font-weight="750">Hosted MCP route</text>
+  </g>
+
+  <g id="core">
+    <rect x="444" y="186" width="250" height="82" rx="20" fill="#151B23" stroke="#9B8CFF"/><text x="482" y="236" class="text" font-size="24" font-weight="780">PreFlight API</text>
+    <rect x="444" y="326" width="250" height="82" rx="20" class="node"/><text x="474" y="360" class="text" font-size="21" font-weight="740">Discovery + safe egress</text><text x="474" y="386" class="sub" font-size="15">SSRF guard + redirects</text>
+    <rect x="444" y="466" width="250" height="82" rx="20" class="node"/><text x="494" y="516" class="text" font-size="22" font-weight="740">x402 seller gate</text>
+    <rect x="444" y="606" width="250" height="98" rx="20" class="node"/><text x="490" y="646" class="text" font-size="22" font-weight="740">Bounded x402 buyer</text><text x="486" y="674" class="sub" font-size="15">Owner attestation</text><text x="486" y="696" class="sub" font-size="15">Spend caps</text>
+    <rect x="444" y="762" width="250" height="82" rx="20" class="node"/><text x="494" y="812" class="text" font-size="22" font-weight="740">Criterion engine</text>
+    <rect x="724" y="716" width="120" height="72" rx="18" class="node2"/><text x="748" y="745" class="text" font-size="17" font-weight="740">Postgres</text><text x="755" y="767" class="sub" font-size="14">reports</text>
+    <rect x="724" y="820" width="120" height="72" rx="18" class="node2"/><text x="744" y="849" class="text" font-size="17" font-weight="740">Ed25519</text><text x="756" y="871" class="sub" font-size="14">signer</text>
+  </g>
+
+  <g id="external">
+    <rect x="960" y="308" width="228" height="92" rx="20" class="node"/><text x="998" y="348" class="text" font-size="21" font-weight="740">Paid agent service</text><text x="1012" y="374" class="sub" font-size="15">Observed target</text>
+    <rect x="960" y="528" width="228" height="92" rx="20" class="node"/><text x="996" y="568" class="text" font-size="21" font-weight="740">X Layer / facilitator</text><text x="1018" y="594" class="sub" font-size="15">x402 settlement</text>
+  </g>
+
+  <g id="proof">
+    <rect x="1300" y="264" width="220" height="76" rx="18" class="node"/><text x="1337" y="310" class="text" font-size="22" font-weight="740">Private report</text>
+    <rect x="1300" y="414" width="220" height="76" rx="18" class="node"/><text x="1335" y="460" class="text" font-size="22" font-weight="740">Public receipt</text>
+    <rect x="1300" y="564" width="220" height="76" rx="18" class="node"/><text x="1344" y="610" class="text" font-size="22" font-weight="740">Release badge</text>
+    <rect x="1300" y="714" width="220" height="76" rx="18" class="node"/><text x="1347" y="760" class="text" font-size="22" font-weight="740">Opt-in gallery</text>
+  </g>
+
+  <path d="M314 206H444" class="edgeV"/>
+  <path d="M314 318H444" class="edgeV"/>
+  <path d="M314 430C360 430 360 542 84 542" class="edge"/>
+  <path d="M314 542H444" class="edgeV"/>
+  <path d="M569 268V326" class="edgeV"/>
+  <path d="M694 367H960" class="edge"/>
+  <path d="M569 268V466" class="edgeV"/>
+  <path d="M694 507H960" class="edge"/>
+  <path d="M694 655H960" class="edgeV"/>
+  <path d="M694 655C832 655 832 574 960 574" class="edgeV"/>
+  <path d="M569 268V762" class="edgeV"/>
+  <path d="M694 803H724" class="edge"/>
+  <path d="M694 803C706 803 706 856 724 856" class="edge"/>
+  <path d="M844 752H1300" class="edge"/>
+  <path d="M844 856C1024 856 1024 452 1300 452" class="edgeV"/>
+  <path d="M1410 490V564" class="edge"/>
+  <path d="M1410 490V714" class="edge"/>
+</svg>
