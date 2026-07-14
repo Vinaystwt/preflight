@@ -22,7 +22,7 @@
   <p>
     <a href="https://github.com/Vinaystwt/preflight/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/Vinaystwt/preflight/actions/workflows/ci.yml/badge.svg?branch=main"></a>
     <a href="https://www.npmjs.com/package/@vinaystwt/preflight-cli"><img alt="npm version" src="https://img.shields.io/npm/v/@vinaystwt/preflight-cli?label=npm"></a>
-    <img alt="Node >=20" src="https://img.shields.io/badge/node-%3E%3D20-9B8CFF">
+    <img alt="Node &gt;=20" src="https://img.shields.io/badge/node-%3E%3D20-9B8CFF">
     <img alt="x402 enabled" src="https://img.shields.io/badge/x402-enabled-9B8CFF">
     <img alt="MCP hosted" src="https://img.shields.io/badge/MCP-hosted-9B8CFF">
   </p>
