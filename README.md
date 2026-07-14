@@ -1,68 +1,77 @@
-# PreFlight
+<div align="center">
+  <img src="docs/assets/readme/preflight-logo.svg" alt="PreFlight logo" width="96" height="96">
 
-**A release gate for paid agent services.** PreFlight behaves like a real customer: it discovers a live service, verifies the x402 buyer journey, and returns a criterion-level `RELEASE`, `BLOCK`, or `UNKNOWN` decision with portable signed proof.
+  <h1>PreFlight</h1>
 
-[Live product](https://usepreflight.xyz) · [Hosted API](https://api.usepreflight.xyz/api/v1/service) · [API docs](docs/api.md) · [MCP docs](docs/mcp.md) · [CLI](docs/cli.md) · [Receipts](docs/receipts.md)
+  <p><strong>Your first real customer before launch.</strong></p>
 
-Source is publicly available for review. No license for reuse, modification, or redistribution is granted unless stated otherwise.
+  <p>
+    PreFlight discovers what a paid agent service actually exposes, optionally completes a bounded real payment, verifies settlement and delivery, and returns RELEASE, BLOCK, or UNKNOWN with criterion-level evidence, remediation, and signed proof.
+  </p>
 
-![PreFlight product overview](docs/assets/preflight-home.png)
+  <p>
+    <a href="https://usepreflight.xyz">Launch PreFlight</a>
+    ·
+    <a href="docs/api.md">Documentation</a>
+    ·
+    <a href="https://api.usepreflight.xyz/api/v1/service">Hosted API</a>
+    ·
+    <a href="https://www.npmjs.com/package/@vinaystwt/preflight-cli">npm CLI</a>
+  </p>
 
-## Why PreFlight exists
+  <p>
+    <a href="https://github.com/Vinaystwt/preflight/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/Vinaystwt/preflight/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+    <a href="https://www.npmjs.com/package/@vinaystwt/preflight-cli"><img alt="npm version" src="https://img.shields.io/npm/v/@vinaystwt/preflight-cli?label=npm"></a>
+    <img alt="Node >=20" src="https://img.shields.io/badge/node-%3E%3D20-9B8CFF">
+    <img alt="x402 enabled" src="https://img.shields.io/badge/x402-enabled-9B8CFF">
+    <img alt="MCP hosted" src="https://img.shields.io/badge/MCP-hosted-9B8CFF">
+  </p>
 
-An endpoint being online is not enough. A paid agent service can still fail when a buyer tries to use it:
+  <p><sub>Source is publicly available for review. No license for reuse, modification, or redistribution is granted unless stated otherwise.</sub></p>
+</div>
 
-- the 402 challenge can advertise the wrong network, asset, amount, or `payTo`;
-- the declared contract can drift from the live response;
-- settlement can succeed while delivery fails;
-- a duplicate payment replay can accidentally deliver twice;
-- a generic score can hide exactly what has to be fixed.
+![PreFlight release verification flow from endpoint discovery to signed verdict](docs/assets/readme/preflight-hero.svg)
 
-PreFlight turns that into a release gate. It compares declared intent against observed production behavior, acts as a bounded buyer when authorized, and returns evidence-backed criteria instead of a vague badge.
+## A service can be online and still be unbuyable
 
-![PreFlight release report](docs/assets/preflight-release-report.png)
+Health checks do not prove that a paid agent service works for a real customer.
 
-## How it works
+A service can respond successfully while its live contract advertises the wrong price, network, asset, or payee. Payment can settle while delivery fails. Declared behavior can drift from production. A generic score can hide the exact issue blocking release.
 
-```mermaid
-sequenceDiagram
-  actor Dev as Developer
-  participant Web as Web / CLI / MCP
-  participant API as PreFlight API
-  participant Target as Agent service
-  participant X as x402 / X Layer
-  participant DB as Report store
+PreFlight tests the buyer journey before customers discover the failure.
 
-  Dev->>Web: Submit endpoint or manifest
-  Web->>API: Discovery request
-  API->>Target: Observe HTTPS, MCP, x402 challenge
-  API-->>Web: Proposed manifest with provenance
-  Dev->>API: Confirm release check
-  API-->>Dev: x402 payment challenge
-  Dev->>API: Paid replay
-  opt Authorized buyer proof
-    API->>Target: Pay as bounded buyer
-    Target->>X: Settle payment
-    Target-->>API: Deliver response
-  end
-  API->>API: Evaluate criteria
-  API->>DB: Publish private report after settlement
-  API-->>Dev: RELEASE / BLOCK / UNKNOWN + signed receipt
-```
+- Contract drift between what was declared and what is live
+- Incorrect payment challenge terms
+- Successful settlement followed by failed delivery
+- Duplicate-payment or replay inconsistencies
+- Missing evidence and unclear remediation
 
-## Key capabilities
+## How PreFlight works
 
-- **Discovery-first workflow** — inspect a live endpoint before paying for a full verification.
-- **Proposed manifest with provenance** — every inferred field says where it came from and whether it needs confirmation.
-- **Real buyer proof** — with owner attestation, PreFlight can pay and take delivery as a bounded buyer.
-- **Deterministic decision model** — `RELEASE`, `BLOCK`, or `UNKNOWN`, built from criterion states.
-- **Exact remediation** — contradictions include observed evidence and a fix.
-- **Signed receipts** — Ed25519 receipt over canonical JSON, verifiable outside the report page.
-- **Private reports** — bearer capability tokens; report IDs are not public access.
-- **MCP wrapper** — hosted MCP endpoint for agent-native discovery and paid tool invocation.
-- **Embeddable badge and gallery** — opt-in proof surfaces for release-ready services.
+PreFlight separates free discovery from paid release verification. Nothing is charged until the developer confirms the discovered contract and starts the full check.
 
-## Decision model
+![PreFlight workflow separating free discovery from paid release verification](docs/assets/readme/preflight-workflow.svg)
+
+1. Submit a public endpoint.
+2. Discover the live service contract.
+3. Review a proposed manifest with provenance.
+4. Confirm the release check and complete the x402 payment.
+5. Optionally authorize bounded buyer proof against the target service.
+6. Receive a decision, criterion evidence, remediation, and a signed receipt.
+
+## What PreFlight verifies
+
+| Surface | What is checked |
+| --- | --- |
+| Discovery | What the endpoint actually exposes over HTTPS, MCP, and payment challenges |
+| Contract integrity | Whether price, network, asset, payee, and declared behavior match production |
+| Payment challenge | Whether the buyer receives coherent and actionable payment terms |
+| Settlement | Whether the required payment state is actually reached |
+| Delivery | Whether the service returns the promised result after payment |
+| Replay behavior | Whether repeated payment or delivery attempts behave safely |
+| Evidence | Whether each criterion is supported by an observable fact rather than a generic score |
+
+## Decisions you can ship against
 
 | Decision | Meaning |
 | --- | --- |
@@ -70,54 +79,54 @@ sequenceDiagram
 | `BLOCK` | At least one mandatory criterion contradicts the release. |
 | `UNKNOWN` | PreFlight could not safely prove the criterion either way. Unknown is honest; it is never silently upgraded. |
 
-Criteria use:
+Each decision is built from criterion-level states:
 
-- `MATCH` — observed production behavior matches the declaration;
-- `CONTRADICTION` — observed production behavior conflicts with the declaration;
-- `UNKNOWN` — not enough safe evidence;
-- `NOT_APPLICABLE` — criterion does not apply to this surface.
+- `MATCH` — observed production behavior matches the declaration
+- `CONTRADICTION` — observed production behavior conflicts with the declaration
+- `UNKNOWN` — there is not enough safe evidence
+- `NOT_APPLICABLE` — the criterion does not apply to this surface
 
-## Architecture
+![PreFlight report showing verdict, criterion evidence, remediation, and signed receipt](docs/assets/readme/preflight-evidence.png)
 
-```mermaid
-flowchart LR
-  Web[Web app] --> API[Fastify API]
-  CLI[CLI] --> API
-  MCP[MCP clients] --> MCPRoute[Hosted Streamable HTTP MCP]
-  MCPRoute --> API
-  API --> Safe[Safe egress + discovery]
-  Safe --> Target[Agent service]
-  API --> Seller[x402 seller gate]
-  API --> Buyer[Bounded x402 buyer]
-  Buyer --> Target
-  Seller --> X[X Layer / x402 facilitator]
-  Buyer --> X
-  API --> Criteria[Criterion engine]
-  Criteria --> Reports[(Postgres reports)]
-  API --> Receipts[Ed25519 receipt signer]
-  Receipts --> Proof[Receipts / badges / gallery]
-```
+_Real product output: verdict, criterion evidence, remediation, and signed proof._
 
-## Quick start
+## Key capabilities
 
-### Web
+- **Discovery-first input** — start with a public endpoint rather than a hand-authored manifest.
+- **Proposed manifest with provenance** — inferred fields show where they came from and whether confirmation is required.
+- **Bounded buyer proof** — with owner attestation and spend limits, PreFlight can pay and take delivery like a real customer.
+- **Deterministic verdicts** — RELEASE, BLOCK, or UNKNOWN from criterion states, not an opaque aggregate score.
+- **Actionable remediation** — contradictions include observed evidence and the exact issue to fix.
+- **Signed receipts** — Ed25519 signatures over canonical JSON, verifiable outside the report page.
+- **Private reports** — bearer capability tokens protect non-public report data.
+- **Agent-native access** — use the hosted API, MCP endpoint, or npm CLI.
+- **Portable proof** — opt-in badges and gallery entries expose only approved release evidence.
 
-Open [usepreflight.xyz](https://usepreflight.xyz), paste a public service endpoint, and review the proposed manifest. Discovery is free; full `verify_release` checks require x402 payment.
+## Use PreFlight your way
 
-### API
+| Surface | Best for | Entry point |
+| --- | --- | --- |
+| Web | Interactive discovery and human-readable reports | `https://usepreflight.xyz` |
+| API | Programmatic release checks | `https://api.usepreflight.xyz` |
+| MCP | Agent-native discovery and verification | `https://api.usepreflight.xyz/mcp` |
+| CLI | Local workflows and CI integration | `@vinaystwt/preflight-cli` |
+
+#### Web
+
+Open https://usepreflight.xyz, paste a public endpoint, and review the proposed manifest. Discovery is free. A full release verification costs 0.10 USDT.
+
+#### API
 
 ```bash
 curl -s https://api.usepreflight.xyz/api/v1/service | jq
 curl -s https://api.usepreflight.xyz/api/v1/contracts/release-manifest/v1 | jq
 ```
 
-`POST /api/v1/verify-release` is a paid x402 endpoint. An unpaid request returns an HTTP 402 challenge; a funded agent replays with `PAYMENT-SIGNATURE`.
+POST /api/v1/verify-release is the paid x402 release-check endpoint. An unpaid request returns a payment challenge; a funded client replays the request with the required payment proof.
 
 See [docs/api.md](docs/api.md).
 
-### MCP
-
-PreFlight’s MCP server is hosted; installing the CLI is not required.
+#### MCP
 
 ```json
 {
@@ -129,50 +138,60 @@ PreFlight’s MCP server is hosted; installing the CLI is not required.
 }
 ```
 
+CLI installation is not required for the hosted MCP service.
+
 See [docs/mcp.md](docs/mcp.md).
 
-### CLI
-
-The CLI is published as `@vinaystwt/preflight-cli` with the `preflight` binary.
-
-Install and smoke-test:
+#### CLI
 
 ```bash
 npm install -g @vinaystwt/preflight-cli
 preflight --help
 preflight verify --help
 preflight verify-receipt --help
+npx @vinaystwt/preflight-cli --help
 ```
+
+See [docs/cli.md](docs/cli.md).
+
+## Architecture
+
+PreFlight keeps discovery, payment verification, bounded buyer execution, criterion evaluation, report storage, and receipt signing as explicit trust boundaries.
+
+![PreFlight architecture showing web, CLI, MCP, payment, buyer proof, reports, and receipts](docs/assets/readme/preflight-architecture.svg)
+
+Web, CLI, and MCP clients call the Fastify API. Discovery uses guarded egress to inspect public services. The seller gate verifies payment to PreFlight, while bounded buyer execution can independently pay the target service. A deterministic criterion engine writes private reports and signs portable receipts with Ed25519.
+
+See [docs/architecture.md](docs/architecture.md).
 
 ## Signed receipts
 
-Every completed check can issue a signed receipt:
+Every completed verification can issue a portable receipt:
 
-- payload is canonical JSON with sorted keys;
-- payload hash is SHA-256;
-- signature algorithm is Ed25519;
-- public keys are served at `GET /api/v1/pubkeys`;
-- public receipts are served at `GET /api/v1/receipts/{receipt_id}`.
+- canonical JSON with sorted keys;
+- SHA-256 payload hash;
+- Ed25519 signature;
+- public verification keys at `GET /api/v1/pubkeys`;
+- public receipt lookup at `GET /api/v1/receipts/{receipt_id}`.
 
-![Signed receipt inspector](docs/assets/preflight-receipt-inspector.png)
-
-See [docs/cli.md](docs/cli.md) and [docs/receipts.md](docs/receipts.md).
+See [docs/receipts.md](docs/receipts.md) and [docs/cli.md](docs/cli.md).
 
 ## Security and trust boundaries
 
 PreFlight is a verifier, not a custody product.
 
-- Private reports require capability tokens.
-- Reports publish after the required settlement state.
-- Probe egress refuses private/internal targets and unsafe redirects.
-- Buyer proof requires owner attestation and spend caps.
+- Private reports require bearer capability tokens.
+- Reports are published only after the required settlement state.
+- Probe egress rejects private/internal targets and unsafe redirects.
+- Bounded buyer proof requires owner attestation and spend caps.
 - Terms-hash drift aborts buyer proof before payment.
-- Wallets are separated by role.
-- Ambiguous evidence returns `UNKNOWN`, not a false release.
+- Seller, buyer, and operational wallets are separated by role.
+- Ambiguous evidence returns UNKNOWN rather than a false release.
 
 See [docs/security.md](docs/security.md).
 
-## Local development
+<details>
+<summary><strong>Local development</strong></summary>
 
 Backend:
 
@@ -203,16 +222,21 @@ npm run build --prefix packages/cli
 (cd packages/cli && npm pack --dry-run)
 ```
 
-## Project structure
+</details>
+
+<details>
+<summary><strong>Project structure</strong></summary>
 
 ```text
 src/                 Fastify API, MCP, release criteria, payments, receipts
 src/db/migrations/   Additive database migrations
 web/                 Next.js web application
-packages/cli/        CLI package source
-docs/                Public API, MCP, receipt, security and operations docs
+packages/cli/        Published CLI source
+docs/                API, MCP, receipt, security, architecture, and deployment docs
 test/                Backend and release-gate tests
 ```
+
+</details>
 
 ## Status and limitations
 
@@ -220,8 +244,8 @@ test/                Backend and release-gate tests
 - Gallery entries are opt-in.
 - Chain anchoring is disabled unless explicitly configured and proven.
 - Browser receipt verification may fall back honestly if local Ed25519 support is unavailable.
-- The CLI is published as `@vinaystwt/preflight-cli@0.1.0`; keep documented commands limited to verified registry-install behavior.
+- The CLI is published as `@vinaystwt/preflight-cli@0.1.0`; documented commands are limited to verified registry behavior.
 
 ## License
 
-No public license has been selected yet. Do not assume open-source reuse rights until a license file is added.
+No public license has been selected. Do not assume rights to reuse, modify, or redistribute the source unless a license is added.
