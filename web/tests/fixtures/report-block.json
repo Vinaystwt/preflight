@@ -395,30 +395,30 @@
     "access_token": "TEST_FIXTURE_TOKEN_placeholder_0000000000000"
   },
   "receipt": {
-    "receipt_id": "rcpt_block00000000000000000000000000",
+    "receipt_id": "rcpt_2a17ee63349e77c0c4b49e2efa7e59a9",
     "payload": {
       "type": "preflight.receipt.v1",
-      "receipt_id": "rcpt_df8dc0000d801c4880d8502b5fd10cff",
       "report_id": "pfr_01KXBPJWKVEH1197WGHH34MYVB",
       "decision": "BLOCK",
       "manifest_hash": "sha256:a5af0e35286c8adc7ed4cd116f29c431e7babb2d9ec0ec7b6f07ef40bfbb4775",
       "snapshot_hash": "sha256:a05407c4280d721724c223f8f0aa05f99d773efbf1b32b03144dca75cb4fb4e2",
       "policy_version": "preflight.release-policy.v1",
-      "settlement_ref": "0xREDACTED_SETTLEMENT_REF",
-      "payer": "0x3a3592FC3E8DE724169295a25865c9694de3DaB5",
+      "settlement_ref": "settlement_ref_public_test_fixture",
+      "payer": "0x000000000000000000000000000000000000dEaD",
       "price_usdt": "0.10",
       "target_fingerprint": "sha256:4bdb4b6c1b6b981d9b495553fe1a1b8d696aed5e8724c7a86c5f190487e06007",
-      "issued_at": "2026-07-13T08:25:31.816Z",
-      "key_id": "preflight-v4-staging-20260713",
-      "chain_anchor": null
+      "issued_at": "2026-07-14T00:00:00.000Z",
+      "key_id": "preflight-public-fixture-20260714",
+      "chain_anchor": null,
+      "receipt_id": "rcpt_2a17ee63349e77c0c4b49e2efa7e59a9"
     },
-    "signature": "PVjm2j7zbULnyY/wC6G3mNv0Bm2uhqNKksHFKPgLPsEofi0cPy3IBGYknCv2oi0vcv5EJe58u0LdlqiptpjuAQ==",
+    "signature": "Zx0VcVQOjqwPnkoRwHG4riycNckqMSc+nww0TvKDBZ/ZOYl7tVDe1jjE4EDAy9j32MMwqzxnuXavnpE5/CxOBA==",
     "signature_alg": "Ed25519",
-    "key_id": "preflight-v4-staging-20260713",
+    "key_id": "preflight-public-fixture-20260714",
     "verify": {
       "canonicalization": "preflight.canonical-json.v1",
-      "payload_hash": "sha256:f1afc114475855dc6499337ffbfea53f8ca888aa094f75828996d5a62bde0fc8",
-      "pubkeys_url": "https://preflight-release-gate-staging-staging.up.railway.app/api/v1/pubkeys"
+      "payload_hash": "sha256:0d11de8558624db95fd69e885d3b2fa6b64194620060ad472ef5758c1ad21426",
+      "pubkeys_url": "https://api.usepreflight.xyz/api/v1/pubkeys"
     }
   },
   "badge_url": null,
