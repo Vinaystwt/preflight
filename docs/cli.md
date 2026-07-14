@@ -2,7 +2,7 @@
 
 The PreFlight CLI lives in `packages/cli`.
 
-The package is prepared as `@usepreflight/cli` with the binary name `preflight`. npm publication is intentionally not claimed until registry access to the `@usepreflight` scope is verified.
+The package is prepared as `@vinaystwt/preflight-cli` with the binary name `preflight`. npm publication is intentionally not claimed until registry verification succeeds.
 
 ## Local build
 

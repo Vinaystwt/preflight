@@ -26,6 +26,7 @@ const mono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://usepreflight.xyz"),
+  alternates: { canonical: "/" },
   title: {
     default: "PreFlight — a release gate that behaves like a real customer",
     template: "%s · PreFlight",
@@ -35,10 +36,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: "PreFlight — a release gate that behaves like a real customer",
     description: "Deployed is not sellable. Prove your service is buyable before it goes live.",
+    url: "https://usepreflight.xyz",
     siteName: "PreFlight",
     type: "website",
   },
-  twitter: { card: "summary_large_image", creator: "@vinaystwt" },
+  twitter: { card: "summary_large_image", creator: "@vinaystwt", site: "@vinaystwt" },
 };
 
 export default function RootLayout({
