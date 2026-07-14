@@ -131,14 +131,15 @@ See [docs/mcp.md](docs/mcp.md).
 
 ### CLI
 
-The CLI source is prepared in [`packages/cli`](packages/cli) as `@vinaystwt/preflight-cli` with the `preflight` binary. npm publication is not presented as complete until registry verification succeeds; until that is complete, use the hosted web, API, or MCP surfaces for production checks.
+The CLI is published as `@vinaystwt/preflight-cli` with the `preflight` binary.
 
-Local smoke:
+Install and smoke-test:
 
 ```bash
-npm run build --prefix packages/cli
-node packages/cli/dist/index.js --help
-node packages/cli/dist/index.js verify-receipt web/tests/fixtures/receipt.json --pubkeys-file web/tests/fixtures/pubkeys.json
+npm install -g @vinaystwt/preflight-cli
+preflight --help
+preflight verify --help
+preflight verify-receipt --help
 ```
 
 ## Signed receipts
@@ -217,7 +218,7 @@ test/                Backend and release-gate tests
 - Gallery entries are opt-in.
 - Chain anchoring is disabled unless explicitly configured and proven.
 - Browser receipt verification may fall back honestly if local Ed25519 support is unavailable.
-- The CLI is prepared for publication but not presented as published until npm registry verification succeeds.
+- The CLI is published as `@vinaystwt/preflight-cli@0.1.0`; keep documented commands limited to verified registry-install behavior.
 
 ## License
 
