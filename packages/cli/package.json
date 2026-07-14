@@ -1,10 +1,10 @@
 {
-  "name": "@usepreflight/cli",
+  "name": "@vinaystwt/preflight-cli",
   "version": "0.1.0",
   "description": "Command-line client for PreFlight Release Gate verification and signed receipt checks.",
   "type": "module",
   "author": "PreFlight",
-  "homepage": "https://preflight-web-bice.vercel.app",
+  "homepage": "https://usepreflight.xyz",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Vinaystwt/preflight.git",

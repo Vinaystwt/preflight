@@ -1,6 +1,10 @@
 import type { FastifyInstance } from "fastify";
 
-const DEFAULT_ALLOWED_ORIGINS = ["https://usepreflight.xyz", "https://www.usepreflight.xyz"];
+const DEFAULT_ALLOWED_ORIGINS = [
+  "https://usepreflight.xyz",
+  "https://www.usepreflight.xyz",
+  "https://preflight-web-bice.vercel.app"
+];
 
 function corsPath(path: string): boolean {
   return path === "/health"

@@ -4,7 +4,7 @@ Production surfaces:
 
 ```text
 Backend: https://api.usepreflight.xyz
-Web:     https://preflight-web-bice.vercel.app
+Web:     https://usepreflight.xyz
 MCP:     https://api.usepreflight.xyz/mcp
 ```
 
@@ -34,7 +34,13 @@ Project root:
 web
 ```
 
-Production alias:
+Canonical production domain:
+
+```text
+https://usepreflight.xyz
+```
+
+Fallback Vercel alias:
 
 ```text
 https://preflight-web-bice.vercel.app

@@ -2,7 +2,7 @@
 
 **A release gate for paid agent services.** PreFlight behaves like a real customer: it discovers a live service, verifies the x402 buyer journey, and returns a criterion-level `RELEASE`, `BLOCK`, or `UNKNOWN` decision with portable signed proof.
 
-[Live product](https://preflight-web-bice.vercel.app) · [Hosted API](https://api.usepreflight.xyz/api/v1/service) · [API docs](docs/api.md) · [MCP docs](docs/mcp.md) · [CLI](docs/cli.md) · [Receipts](docs/receipts.md)
+[Live product](https://usepreflight.xyz) · [Hosted API](https://api.usepreflight.xyz/api/v1/service) · [API docs](docs/api.md) · [MCP docs](docs/mcp.md) · [CLI](docs/cli.md) · [Receipts](docs/receipts.md)
 
 ![PreFlight product overview](docs/assets/preflight-home.png)
 
@@ -100,7 +100,7 @@ flowchart LR
 
 ### Web
 
-Open [preflight-web-bice.vercel.app](https://preflight-web-bice.vercel.app), paste a public service endpoint, and review the proposed manifest. Discovery is free; full `verify_release` checks require x402 payment.
+Open [usepreflight.xyz](https://usepreflight.xyz), paste a public service endpoint, and review the proposed manifest. Discovery is free; full `verify_release` checks require x402 payment.
 
 ### API
 
@@ -131,7 +131,7 @@ See [docs/mcp.md](docs/mcp.md).
 
 ### CLI
 
-The CLI source is prepared in [`packages/cli`](packages/cli). npm publication is pending verified access to the `@usepreflight` npm scope; until that is complete, use the hosted web, API, or MCP surfaces for production checks.
+The CLI source is prepared in [`packages/cli`](packages/cli) as `@vinaystwt/preflight-cli` with the `preflight` binary. npm publication is not presented as complete until registry verification succeeds; until that is complete, use the hosted web, API, or MCP surfaces for production checks.
 
 Local smoke:
 

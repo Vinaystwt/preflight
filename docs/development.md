@@ -39,4 +39,4 @@ npm run build --prefix packages/cli
 (cd packages/cli && npm pack --dry-run)
 ```
 
-The CLI package is prepared under `packages/cli`. npm publication depends on verified access to the intended npm scope.
+The CLI package is prepared under `packages/cli` as `@vinaystwt/preflight-cli`. npm publication is not claimed until registry verification succeeds.

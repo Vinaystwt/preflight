@@ -2,6 +2,9 @@
 
 Command-line client for PreFlight Release Gate.
 
+Package: `@vinaystwt/preflight-cli`
+Binary: `preflight`
+
 ```bash
 preflight verify https://api.example.com/paid-route --wallet-key 0x... --json
 preflight verify-receipt rcpt_... --json

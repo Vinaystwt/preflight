@@ -65,7 +65,7 @@ export default function CliPage() {
       </div>
 
       <Section id="install" title="Installation">
-        <P>The hosted web, API, and MCP surfaces are live. The CLI package is prepared in the public repository and will use the <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[0.85em] text-primary">preflight</code> binary once npm publication is verified.</P>
+        <P>The hosted web, API, and MCP surfaces are live. The CLI package is prepared as <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[0.85em] text-primary">@vinaystwt/preflight-cli</code> and will use the <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[0.85em] text-primary">preflight</code> binary once npm publication is verified.</P>
         <CodeBlock className="mt-3" code={`git clone https://github.com/Vinaystwt/preflight.git
 cd preflight
 npm run build --prefix packages/cli
