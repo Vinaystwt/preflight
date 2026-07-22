@@ -107,11 +107,20 @@ function redactedGalleryReport(report: Omit<VerifyReleaseResponseV1, "report_acc
 }
 
 function validationIssues(cause: ZodError): Array<{ path: string; code: string; message: string }> {
-  return cause.issues.flatMap((issue) => {
+  const render = (issue: ZodError["issues"][number]): Array<{ path: string; code: string; message: string }> => {
+    if (issue.code === "invalid_union" && "errors" in issue && Array.isArray(issue.errors)) {
+      const branches = issue.errors
+        .filter((branch): branch is ZodError["issues"] => Array.isArray(branch))
+        .map((branch) => branch.flatMap(render))
+        .filter((branch) => branch.length > 0)
+        .sort((left, right) => left.length - right.length);
+      return branches[0] ?? [{ path: issue.path.join(".") || "$", code: issue.code, message: issue.message }];
+    }
     const keys = "keys" in issue && Array.isArray(issue.keys) ? issue.keys : null;
     if (keys?.length) return keys.map((key) => ({ path: [...issue.path, key].join(".") || key, code: issue.code, message: `Unknown field: ${key}` }));
     return [{ path: issue.path.join(".") || "$", code: issue.code, message: issue.message }];
-  });
+  };
+  return cause.issues.flatMap(render);
 }
 
 function invalidVerifyRequest(requestId: string, config: Config, issues: Array<{ path: string; code: string; message: string }>) {

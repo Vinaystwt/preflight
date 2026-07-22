@@ -75,6 +75,16 @@ export function mountMcp(app: FastifyInstance, config: Config): void {
       if (injected.statusCode >= 400) return reply.code(injected.statusCode).send(jsonRpcResult(body.id, parsed, true));
       return reply.send(jsonRpcResult(body.id, parsed));
     }
+    if (request.method === "POST" && body?.method === "tools/call") {
+      return reply.send({
+        jsonrpc: "2.0",
+        id: body.id,
+        error: {
+          code: -32601,
+          message: `Unknown tool: ${String(body.params?.name ?? "")}`
+        }
+      });
+    }
     const server = createDiscoveryServer(config);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     await server.connect(transport);
