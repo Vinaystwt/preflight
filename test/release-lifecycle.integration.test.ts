@@ -24,13 +24,25 @@ async function applyReleaseMigrations(sql: postgres.Sql): Promise<void> {
 }
 
 function gateway(overrides: Partial<ReleasePaymentGateway> = {}): ReleasePaymentGateway {
-  return {
+  const base = {
     requirements: vi.fn(async () => [requirement] as never), challenge: vi.fn(async () => Buffer.from(JSON.stringify(challenge)).toString("base64")),
     decode: vi.fn(() => paymentPayload as never), match: vi.fn(() => requirement as never), verify: vi.fn(async () => ({ valid: true, payer: paymentPayload.payload.authorization.from })),
     settle: vi.fn(async () => ({ success: true, status: "success", transaction: "0xsettled", network: requirement.network, payer: paymentPayload.payload.authorization.from } as never)),
     settlementStatus: vi.fn(async () => ({ status: "success", transaction: "0xsettled" } as never)),
     responseHeader: vi.fn(() => "settled-header"), ...overrides
-  };
+  } as ReleasePaymentGateway;
+  base.decodeAuthorization = overrides.decodeAuthorization ?? vi.fn((headers) => {
+    const v2 = headers["payment-signature"];
+    const v1 = headers["x-payment"];
+    const v2Value = typeof v2 === "string" ? v2 : undefined;
+    const v1Value = typeof v1 === "string" ? v1 : undefined;
+    if (!v2Value && !v1Value) return null;
+    if (v2Value && v1Value && v2Value !== v1Value) throw new Error("conflicting_payment_headers");
+    const protocol = v1Value && !v2Value ? "v1" as const : "v2" as const;
+    const payload = base.decode(v2Value ?? v1Value!);
+    return { protocol, requestHeaderName: protocol === "v1" ? "X-PAYMENT" as const : "PAYMENT-SIGNATURE" as const, responseHeaderName: protocol === "v1" ? "X-PAYMENT-RESPONSE" as const : "PAYMENT-RESPONSE" as const, payload, fingerprint: `test:${JSON.stringify(payload.payload)}` };
+  });
+  return base;
 }
 function egress() {
   return new SafeEgressClient({ resolver: { resolve4: async () => ["93.184.216.34"], resolve6: async () => [] }, requestOnce: async () => ({ status: 402, headers: { "payment-required": Buffer.from(JSON.stringify(challenge)).toString("base64") }, compressedBody: Buffer.from("{}") }) });

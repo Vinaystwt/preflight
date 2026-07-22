@@ -5,16 +5,16 @@ import { loadConfig } from "../src/config.js";
 import type { Database } from "../src/db/client.js";
 import { verifyReleaseRequestV1Schema } from "../src/contracts/release-gate.js";
 import { mountMcp } from "../src/mcp/server.js";
-import type { ReleasePaymentGateway } from "../src/payments/release-gateway.js";
+import { decodeReleasePaymentAuthorization, type ReleasePaymentGateway } from "../src/payments/release-gateway.js";
 import { mountReleaseGate } from "../src/routes/release-gate.js";
 import { manifestFixture } from "./helpers/manifest.js";
 
-const requirement = { scheme: "exact", network: "eip155:196", amount: "100000", asset: manifestFixture.payment.asset, payTo: manifestFixture.payment.pay_to, maxTimeoutSeconds: 300 };
+const requirement = { scheme: "exact", network: "eip155:196", amount: "100000", asset: manifestFixture.payment.asset, payTo: manifestFixture.payment.pay_to, maxTimeoutSeconds: 300, extra: { name: "USD₮0", version: "1" } } as const;
 const challenge = { x402Version: 2, accepts: [requirement] };
 const paymentPayload = { x402Version: 2, accepted: requirement, payload: { authorization: { from: "0x1111111111111111111111111111111111111111" } } };
 
 function gateway(overrides: Partial<ReleasePaymentGateway> = {}): ReleasePaymentGateway {
-  return {
+  const base = {
     requirements: vi.fn(async () => [requirement] as never),
     challenge: vi.fn(async () => Buffer.from(JSON.stringify(challenge)).toString("base64")),
     decode: vi.fn((signature) => { if (signature !== "paid") throw new Error("invalid payment"); return paymentPayload as never; }),
@@ -24,7 +24,19 @@ function gateway(overrides: Partial<ReleasePaymentGateway> = {}): ReleasePayment
     settlementStatus: vi.fn(),
     responseHeader: vi.fn(),
     ...overrides
-  };
+  } as ReleasePaymentGateway;
+  base.decodeAuthorization = overrides.decodeAuthorization ?? vi.fn((headers) => {
+    const v2 = headers["payment-signature"];
+    const v1 = headers["x-payment"];
+    const v2Value = typeof v2 === "string" ? v2 : undefined;
+    const v1Value = typeof v1 === "string" ? v1 : undefined;
+    if (!v2Value && !v1Value) return null;
+    if (v2Value && v1Value && v2Value !== v1Value) throw new Error("conflicting_payment_headers");
+    const protocol = v1Value && !v2Value ? "v1" as const : "v2" as const;
+    const payload = base.decode(v2Value ?? v1Value!);
+    return { protocol, requestHeaderName: protocol === "v1" ? "X-PAYMENT" as const : "PAYMENT-SIGNATURE" as const, responseHeaderName: protocol === "v1" ? "X-PAYMENT-RESPONSE" as const : "PAYMENT-RESPONSE" as const, payload, fingerprint: `test:${JSON.stringify(payload.payload)}` };
+  });
+  return base;
 }
 
 async function app(testGateway: ReleasePaymentGateway = gateway()) {
@@ -46,6 +58,10 @@ function decoded(response: { headers: Record<string, string | string[] | number 
   return JSON.parse(Buffer.from(String(response.headers["payment-required"]), "base64").toString("utf8"));
 }
 
+function b64(value: unknown) {
+  return Buffer.from(JSON.stringify(value)).toString("base64");
+}
+
 describe("reviewer x402 challenge invariant", () => {
   it("mirrors the OKX listing-review probe by returning a full challenge on GET and POST", async () => {
     const server = await app();
@@ -57,7 +73,41 @@ describe("reviewer x402 challenge invariant", () => {
     const post = await server.inject({ method: "POST", url: "/api/v1/verify-release", payload: JSON.stringify({ endpoint: manifestFixture.target.endpoint }), headers: { "content-type": "application/json" } });
     expect(post.statusCode).toBe(402);
     expect(decoded(post).accepts[0]).toMatchObject(requirement);
+    expect(post.json()).toMatchObject({
+      error: {
+        code: "PAYMENT_REQUIRED",
+        charge_status: "NOT_CHARGED",
+        details: {
+          accepted_payment_headers: ["PAYMENT-SIGNATURE", "X-PAYMENT"],
+          protocol_versions: { "PAYMENT-SIGNATURE": 2, "X-PAYMENT": 1 },
+          reason: "missing_header"
+        }
+      }
+    });
     await server.close();
+  });
+
+  it("normalizes legacy X-PAYMENT v1 without trusting client-declared commercial terms", () => {
+    const legacy = b64({ x402Version: 1, scheme: "exact", network: "eip155:196", payload: { signature: "0x" + "1".repeat(130), authorization: { from: paymentPayload.payload.authorization.from, value: "999999999" } } });
+    const auth = decodeReleasePaymentAuthorization({ "x-payment": legacy }, [requirement]);
+    expect(auth).toMatchObject({
+      protocol: "v1",
+      requestHeaderName: "X-PAYMENT",
+      responseHeaderName: "X-PAYMENT-RESPONSE",
+      payload: {
+        x402Version: 2,
+        accepted: requirement,
+        payload: {
+          signature: "0x" + "1".repeat(130),
+          authorization: { from: paymentPayload.payload.authorization.from, value: "999999999" }
+        }
+      }
+    });
+    const same = decodeReleasePaymentAuthorization({ "payment-signature": "paid", "x-payment": legacy }, [requirement], () => auth!.payload);
+    expect(same?.protocol).toBe("v2");
+    expect(() => decodeReleasePaymentAuthorization({ "payment-signature": "paid", "x-payment": legacy }, [requirement], () => ({ ...auth!.payload, payload: { authorization: { from: "0x2222222222222222222222222222222222222222" } } } as never))).toThrow(/conflicting_payment_headers/);
+    expect(() => decodeReleasePaymentAuthorization({ "x-payment": b64({ x402Version: 7, scheme: "exact", network: "eip155:196", payload: { signature: "0x", authorization: {} } }) }, [requirement])).toThrow(/unsupported_protocol_version/);
+    expect(() => decodeReleasePaymentAuthorization({ "x-payment": "not-json" }, [requirement])).toThrow();
   });
 
   it("challenges unauthorized requests before body parsing or request validation", async () => {
@@ -117,6 +167,26 @@ describe("reviewer x402 challenge invariant", () => {
     const unapprovedBuyerProof = await server.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "payment-signature": "paid", "content-type": "application/json" }, payload: JSON.stringify({ endpoint: manifestFixture.target.endpoint, authorize_buyer_proof: true }) });
     expect(unapprovedBuyerProof.statusCode).toBe(400);
     expect(unapprovedBuyerProof.json()).toMatchObject({ error: { code: "BUYER_OWNER_ATTESTATION_REQUIRED", charge_status: "NOT_CHARGED" } });
+    expect(fake.settle).not.toHaveBeenCalled();
+    await server.close();
+  });
+
+  it("recognizes X-PAYMENT before body validation and rejects malformed/conflicting aliases without charge", async () => {
+    const fake = gateway();
+    const server = await app(fake);
+    const validV1 = await server.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "x-payment": "paid", "content-type": "application/json" }, payload: "{" });
+    expect(validV1.statusCode).toBe(400);
+    expect(validV1.json()).toMatchObject({ error: { code: "VERIFY_REQUEST_INVALID", charge_status: "NOT_CHARGED" } });
+    expect(fake.verify).toHaveBeenCalledTimes(1);
+    expect(fake.settle).not.toHaveBeenCalled();
+
+    const malformed = await server.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "x-payment": "not-a-payment", "content-type": "application/json" }, payload: JSON.stringify({ endpoint: manifestFixture.target.endpoint }) });
+    expect(malformed.statusCode).toBe(402);
+    expect(malformed.json()).toMatchObject({ error: { code: "PAYMENT_AUTHORIZATION_INVALID", charge_status: "NOT_CHARGED", details: { supplied_payment_header: true, reason: "malformed_header" } } });
+
+    const conflict = await server.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "payment-signature": "paid", "x-payment": "different-paid", "content-type": "application/json" }, payload: JSON.stringify({ endpoint: manifestFixture.target.endpoint }) });
+    expect(conflict.statusCode).toBe(402);
+    expect(conflict.json()).toMatchObject({ error: { code: "PAYMENT_AUTHORIZATION_INVALID", charge_status: "NOT_CHARGED", details: { reason: "conflicting_payment_headers" } } });
     expect(fake.settle).not.toHaveBeenCalled();
     await server.close();
   });

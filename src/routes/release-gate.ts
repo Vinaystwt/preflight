@@ -8,7 +8,7 @@ import { CONTRACT_VERSIONS, apiErrorV1Schema, discoveryResponseV1Schema, gallery
 import type { Database } from "../db/client.js";
 import { EgressPolicyError, SafeEgressClient } from "../egress/safe-client.js";
 import { createBuyerProofClient, type BuyerProofClient } from "../payments/buyer.js";
-import { createReleasePaymentGateway, type ReleasePaymentGateway } from "../payments/release-gateway.js";
+import { createReleasePaymentGateway, type ReleasePaymentAuthorization, type ReleasePaymentGateway } from "../payments/release-gateway.js";
 import { mcpAdapter, transportAdapter, x402Adapter } from "../release/adapters.js";
 import { aggregateDecision, evaluateCriteria, evaluateListingCriteria, POLICY_VERSION } from "../release/criteria.js";
 import { defaultDiscoveryProbeInput, discoverReleaseSurface } from "../release/discovery.js";
@@ -20,8 +20,8 @@ import { FreeCohortScanner } from "../cohort.js";
 import { mountV5Routes, passportBadgeSvg } from "./v5.js";
 import { judgeResponse } from "../release/judge-response.js";
 
-function error(requestId: string, code: string, message: string, category: ApiErrorV1["error"]["category"], status: number, charge: ApiErrorV1["error"]["charge_status"] = "NOT_CHARGED", retryable = false) {
-  return { status, body: apiErrorV1Schema.parse({ schema_version: "preflight.error.v1", error: { code, message, category, retryable, charge_status: charge, request_id: requestId } }) };
+function error(requestId: string, code: string, message: string, category: ApiErrorV1["error"]["category"], status: number, charge: ApiErrorV1["error"]["charge_status"] = "NOT_CHARGED", retryable = false, details?: Record<string, unknown>) {
+  return { status, body: apiErrorV1Schema.parse({ schema_version: "preflight.error.v1", error: { code, message, category, retryable, charge_status: charge, request_id: requestId, ...(details ? { details } : {}) } }) };
 }
 function group(criteria: CriterionResult[]) {
   return [...new Set(criteria.map((criterion) => criterion.group))].map((code) => ({ code, label: code[0]!.toUpperCase() + code.slice(1), criteria: criteria.filter((criterion) => criterion.group === code) }));
@@ -38,7 +38,7 @@ function bearer(request: { headers: { authorization?: string | string[] }; query
   return typeof token === "string" ? token : "";
 }
 const delay = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
-const verifyReleaseAuth = new WeakMap<FastifyRequest, { paymentPayload: ReturnType<ReleasePaymentGateway["decode"]>; matched: Awaited<ReturnType<ReleasePaymentGateway["requirements"]>>[number]; verified: Awaited<ReturnType<ReleasePaymentGateway["verify"]>> }>();
+const verifyReleaseAuth = new WeakMap<FastifyRequest, { authorization: ReleasePaymentAuthorization; paymentPayload: ReleasePaymentAuthorization["payload"]; matched: Awaited<ReturnType<ReleasePaymentGateway["requirements"]>>[number]; verified: Awaited<ReturnType<ReleasePaymentGateway["verify"]>> }>();
 const verifyReleaseBody = new WeakMap<FastifyRequest, { ok: true; body: unknown } | { ok: false; code: string; message: string }>();
 function retryAfter(window: "day" | "hour" | "minute"): number {
   const now = new Date();
@@ -268,10 +268,18 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
     const resourceUrl = `https://${config.PUBLIC_DOMAIN}/api/v1/verify-release`;
     return { resourceUrl, requirements: await gateway!.requirements(resourceUrl) };
   };
-  const sendChallenge = async (request: FastifyRequest, reply: FastifyReply) => {
+  const paymentHeaderDetails = {
+    accepted_payment_headers: ["PAYMENT-SIGNATURE", "X-PAYMENT"],
+    protocol_versions: { "PAYMENT-SIGNATURE": 2, "X-PAYMENT": 1 }
+  };
+  const sendChallenge = async (request: FastifyRequest, reply: FastifyReply, reason: "missing_header" | "malformed_header" | "unsupported_protocol_version" | "requirements_mismatch" | "facilitator_rejected" | "conflicting_payment_headers" = "missing_header") => {
     const { resourceUrl, requirements } = await verifyReleaseRequirements();
     reply.header("PAYMENT-REQUIRED", await gateway!.challenge(requirements, resourceUrl));
-    return reply.code(402).send(error(request.id, "PAYMENT_REQUIRED", "Payment authorization is required.", "PAYMENT", 402).body);
+    reply.header("Access-Control-Expose-Headers", "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE, Allow");
+    const supplied = reason !== "missing_header";
+    const code = supplied ? "PAYMENT_AUTHORIZATION_INVALID" : "PAYMENT_REQUIRED";
+    const message = supplied ? "Payment authorization was supplied but could not be accepted." : "Payment authorization is required.";
+    return reply.code(402).send(error(request.id, code, message, "PAYMENT", 402, "NOT_CHARGED", false, { ...paymentHeaderDetails, reason, supplied_payment_header: supplied }).body);
   };
 
   app.addHook("preParsing", async (request, reply, payload) => {
@@ -281,21 +289,22 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
       reply.code(failure.status).send(failure.body);
       return reply;
     }
-    const signature = request.headers["payment-signature"];
-    if (typeof signature !== "string") return sendChallenge(request, reply);
     try {
-      const paymentPayload = gateway.decode(signature);
       const { requirements } = await verifyReleaseRequirements();
+      const authorization = gateway.decodeAuthorization(request.headers, requirements);
+      if (!authorization) return sendChallenge(request, reply);
+      const paymentPayload = authorization.payload;
       const matched = gateway.match(requirements, paymentPayload);
-      if (!matched) return sendChallenge(request, reply);
+      if (!matched) return sendChallenge(request, reply, "requirements_mismatch");
       const verified = await gateway.verify(paymentPayload, matched);
-      if (!verified.valid) return sendChallenge(request, reply);
-      verifyReleaseAuth.set(request, { paymentPayload, matched, verified });
+      if (!verified.valid) return sendChallenge(request, reply, "facilitator_rejected");
+      verifyReleaseAuth.set(request, { authorization, paymentPayload, matched, verified });
       verifyReleaseBody.set(request, await parseAuthorizedBody(payload as AsyncIterable<Buffer>, request.headers["content-type"]));
       return parsedPlaceholder(request.headers["content-length"]);
     } catch (cause) {
-      request.log.warn({ event: "verify_release_payment_authorization_invalid_preparse", err: cause }, "invalid x402 authorization challenged before body parsing");
-      return sendChallenge(request, reply);
+      const reason = cause instanceof Error && /unsupported_protocol_version|requirements_mismatch|conflicting_payment_headers|malformed_header/.test(cause.message) ? cause.message as "unsupported_protocol_version" | "requirements_mismatch" | "conflicting_payment_headers" | "malformed_header" : "malformed_header";
+      request.log.warn({ event: "verify_release_payment_authorization_invalid_preparse", reason }, "invalid x402 authorization challenged before body parsing");
+      return sendChallenge(request, reply, reason);
     }
   });
 
@@ -344,7 +353,7 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
 
   app.get("/api/v1/verify-release", async (request, reply) => {
     if (!repository || !gateway) { const failure = error(request.id, "PAYMENT_SERVICE_UNAVAILABLE", "Paid verification is not ready.", "DEPENDENCY", 503, "NOT_CHARGED", true); return reply.header("Allow", "POST").code(failure.status).send(failure.body); }
-    reply.header("Allow", "POST").header("Cache-Control", "no-store").header("Access-Control-Expose-Headers", "PAYMENT-REQUIRED, Allow");
+    reply.header("Allow", "POST").header("Cache-Control", "no-store").header("Access-Control-Expose-Headers", "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE, Allow");
     return sendChallenge(request, reply);
   });
 
@@ -470,7 +479,7 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
           await repository.audit(run.id, "GALLERY_ENTRY_CREATED", { decision: finalReport.decision });
         } else await repository.audit(run.id, "GALLERY_RATE_LIMITED", {});
       }
-      const token = await repository.publish(run.id); reply.header("PAYMENT-RESPONSE", gateway.responseHeader(settled));
+      const token = await repository.publish(run.id); reply.header(authorization.authorization.responseHeaderName, gateway.responseHeader(settled));
       if (resolved.listing && finalReport.decision === "RELEASE" && finalReport.receipt) await repository.upsertPassport(resolved.listing.agentId, finalReport.receipt.receipt_id, finalReport.policy_version, { endpoint: resolved.manifest.target.endpoint, service_id: resolved.listing.serviceId }, new Date(Date.now() + config.PASSPORT_TTL_DAYS * 86_400_000));
       return judgeResponse(complete(finalReport, token, config), token, config, Date.now(), resolved.listing ? { agentId: resolved.listing.agentId, serviceId: resolved.listing.serviceId, name: resolved.listing.name } : undefined);
     } catch (cause) {
