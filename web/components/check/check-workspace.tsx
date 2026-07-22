@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { Search, Loader2, TriangleAlert, CircleCheck, AlertCircle } from "lucide-react";
-import { discover } from "@/lib/api/endpoints";
+import { discover, resolveAgent } from "@/lib/api/endpoints";
 import { ApiError, TransportError } from "@/lib/api/client";
 import type { DiscoveryV1, ProposedField, X402Accept } from "@/lib/contracts";
+import type { ResolveV1, ResolvedField } from "@/lib/contracts-v5";
 import { CodeBlock } from "@/components/code-block";
 import { ProvenanceBadge } from "./provenance-badge";
 import { ProbingConsole } from "./probing-console";
@@ -13,29 +14,67 @@ import { cn } from "@/lib/utils";
 
 type State =
   | { k: "idle" }
-  | { k: "loading" }
-  | { k: "ok"; data: DiscoveryV1 }
+  | { k: "resolving" }
+  | { k: "loading"; listing?: ResolveV1 }
+  | { k: "ok"; data: DiscoveryV1; listing?: ResolveV1 }
   | { k: "rate"; retryAfter?: string }
-  | { k: "error"; message: string };
+  | { k: "error"; message: string; listing?: ResolveV1 };
 
-export function CheckWorkspace() {
-  const [endpoint, setEndpoint] = useState("");
+// numeric-only is an OKX Agent ID; anything else is an endpoint URL.
+const AGENT_ID_RE = /^\d{1,10}$/;
+
+export function CheckWorkspace({ initialInput }: { initialInput?: string } = {}) {
+  const [input, setInput] = useState(initialInput ?? "");
   const [inputError, setInputError] = useState<string | null>(null);
   const [state, setState] = useState<State>({ k: "idle" });
 
-  async function run(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const rawEndpoint = String(new FormData(e.currentTarget).get("endpoint") ?? endpoint).trim();
-    let url: URL;
-    try {
-      url = new URL(rawEndpoint);
-      if (url.protocol !== "https:") throw new Error();
-    } catch {
-      setInputError("Enter a full https:// endpoint URL.");
+  async function runFor(raw: string) {
+    const trimmed = raw.trim();
+    setInputError(null);
+
+    if (AGENT_ID_RE.test(trimmed)) {
+      // agent_id flow: resolve → render listing → then discover the resolved endpoint
+      setState({ k: "resolving" });
+      let listing: ResolveV1;
+      try {
+        listing = await resolveAgent(trimmed);
+      } catch (err) {
+        if (err instanceof ApiError && err.httpStatus === 503) {
+          setState({ k: "error", message: "OKX listing resolver is temporarily unavailable. Try an endpoint URL, or try again shortly." });
+          return;
+        }
+        if (err instanceof ApiError && err.kind === "rate_limit") { setState({ k: "rate" }); return; }
+        if (err instanceof ApiError) { setState({ k: "error", message: err.message }); return; }
+        if (err instanceof TransportError) { setState({ k: "error", message: "Could not reach the listing resolver." }); return; }
+        setState({ k: "error", message: "Listing resolution failed." }); return;
+      }
+      const declaredEndpoint = listing.endpoint?.value;
+      if (!declaredEndpoint) {
+        setState({ k: "error", message: "Listing has no declared endpoint to discover.", listing });
+        return;
+      }
+      setState({ k: "loading", listing });
+      try {
+        const data = await discover(declaredEndpoint);
+        setState({ k: "ok", data, listing });
+      } catch (err) {
+        if (err instanceof ApiError && err.kind === "rate_limit") setState({ k: "rate" });
+        else if (err instanceof ApiError) setState({ k: "error", message: err.message, listing });
+        else if (err instanceof TransportError) setState({ k: "error", message: "Discovery service could not be reached.", listing });
+        else setState({ k: "error", message: "Something went wrong. Try again.", listing });
+      }
       return;
     }
-    setEndpoint(rawEndpoint);
-    setInputError(null);
+
+    // endpoint URL flow (existing behavior)
+    let url: URL;
+    try {
+      url = new URL(trimmed);
+      if (url.protocol !== "https:") throw new Error();
+    } catch {
+      setInputError("Enter a full https:// endpoint URL, or a numeric OKX Agent ID.");
+      return;
+    }
     setState({ k: "loading" });
     try {
       const data = await discover(url.toString());
@@ -46,6 +85,18 @@ export function CheckWorkspace() {
       else if (err instanceof TransportError) setState({ k: "error", message: "The discovery service could not be reached. Check the endpoint and try again." });
       else setState({ k: "error", message: "Something went wrong. Try again." });
     }
+  }
+
+  async function run(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const raw = String(new FormData(e.currentTarget).get("endpoint") ?? input);
+    setInput(raw);
+    await runFor(raw);
+  }
+
+  function tryJudgeMode() {
+    setInput("2013");
+    void runFor("2013");
   }
 
   return (
@@ -59,36 +110,56 @@ export function CheckWorkspace() {
       </p>
 
       <form onSubmit={run} className="panel mt-8 rounded-md p-4">
-        <label htmlFor="endpoint" className="t-label text-tertiary">Endpoint or Agent ID</label>
+        <label htmlFor="endpoint" className="t-label text-tertiary">Endpoint URL or OKX Agent ID</label>
         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
           <input
             id="endpoint"
             name="endpoint"
-            type="url"
-            inputMode="url"
+            type="text"
             autoComplete="off"
             spellCheck={false}
-            placeholder="https://api.your-service.com/mcp"
-            value={endpoint}
-            onChange={(e) => setEndpoint(e.target.value)}
+            placeholder="https://api.your-service.com/mcp   or   2013"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
             aria-invalid={inputError ? true : undefined}
             className="h-11 min-w-0 flex-1 rounded-md border border-border bg-base px-3 font-mono text-[13px] text-primary placeholder:text-tertiary focus:border-accent-focus focus:outline-none"
             style={{ background: "var(--base)" }}
           />
           <button
             type="submit"
-            disabled={state.k === "loading"}
+            disabled={state.k === "loading" || state.k === "resolving"}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-accent px-5 t-ui font-medium text-inverse transition-colors hover:bg-accent-hover disabled:opacity-60"
           >
-            {state.k === "loading" ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Search className="size-4" aria-hidden />}
-            {state.k === "loading" ? "Discovering" : "Discover"}
+            {state.k === "loading" || state.k === "resolving" ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Search className="size-4" aria-hidden />}
+            {state.k === "resolving" ? "Resolving listing" : state.k === "loading" ? "Discovering" : "Discover"}
           </button>
         </div>
         {inputError && <p role="alert" className="mt-2 t-ui text-block">{inputError}</p>}
         <p className="mt-2 t-ui text-tertiary">Free. Rate limited per IP. No payment and no signing happen here.</p>
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={tryJudgeMode}
+            disabled={state.k === "loading" || state.k === "resolving"}
+            className="inline-flex items-center gap-1.5 rounded border border-border px-2.5 py-1 t-ui text-tertiary transition-colors hover:bg-surface-2 hover:text-primary disabled:opacity-60"
+          >
+            Try Judge Mode
+          </button>
+          <span className="t-evidence text-tertiary">Loads OKX agent 2013 (a known BLOCK case) end to end.</span>
+        </div>
       </form>
 
       <div aria-live="polite" className="mt-6">
+        {state.k === "resolving" && (
+          <div className="rounded-md border border-border p-5" style={{ background: "var(--surface-1)" }}>
+            <p className="t-ui text-secondary">Resolving OKX listing…</p>
+          </div>
+        )}
+        {"listing" in state && state.listing && (
+          <div className="mb-6">
+            <ListingCard listing={state.listing} />
+          </div>
+        )}
         {state.k === "loading" && <ProbingConsole status="running" />}
         {state.k === "rate" && (
           <Panel tone="warning" Icon={TriangleAlert} title="Discovery rate limit reached">
@@ -249,6 +320,55 @@ function Disc({ t, v }: { t: string; v: string }) {
     <div>
       <dt className="t-label text-tertiary">{t}</dt>
       <dd className="mt-0.5 text-secondary">{v}</dd>
+    </div>
+  );
+}
+
+/* Judge-mode listing card: DECLARED (from the OKX marketplace listing) on the
+   left, OBSERVED slot on the right. The observed side stays empty here; the
+   full runtime observation appears in the Observed live surface below once
+   discovery lands. Preserving the declared/observed split is the whole point. */
+function ListingCard({ listing }: { listing: ResolveV1 }) {
+  const rows: [string, ResolvedField | undefined][] = [
+    ["Name", listing.name],
+    ["Category", listing.category_code],
+    ["Status", listing.status],
+    ["Endpoint", listing.endpoint],
+    ["Fee", listing.fee],
+    ["Asset", listing.asset],
+  ];
+  return (
+    <div className="panel overflow-hidden rounded-md">
+      <div className="border-b border-border px-5 py-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="t-label text-tertiary">Resolved OKX listing</p>
+          <p className="t-evidence font-mono text-tertiary">agent {listing.agent_id}</p>
+        </div>
+        {listing.description?.value && (
+          <p className="mt-2 t-body text-[14px] leading-[1.55] text-secondary">{listing.description.value}</p>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2">
+        <div className="border-b border-sep p-5 sm:border-b-0 sm:border-r">
+          <p className="t-label text-tertiary">Declared by listing</p>
+          <dl className="mt-3 flex flex-col gap-2.5">
+            {rows.map(([label, field]) => (
+              <div key={label} className="grid grid-cols-[92px_1fr] items-baseline gap-x-3">
+                <dt className="t-label text-tertiary">{label}</dt>
+                <dd className="min-w-0 break-words t-evidence text-secondary">{field?.value ?? "not declared"}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="t-evidence mt-3 text-tertiary">Source: OKX OnchainOS CLI</p>
+        </div>
+        <div className="p-5">
+          <p className="t-label text-tertiary">Observed at runtime</p>
+          <p className="mt-3 t-body text-[14px] leading-[1.55] text-secondary">
+            The runtime surface appears below. PreFlight will compare every declared field against
+            what the endpoint actually exposes, criterion by criterion.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

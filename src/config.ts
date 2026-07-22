@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 const price = z.string().regex(/^\d+(?:\.\d{1,6})?$/);
+const defaultCohortSeedAgentIds = [
+  "2013", "2023", "1965", "3345", "1891", "1958", "1973", "1445", "1719", "4183", "2135", "1500",
+  "2161", "4543", "5421", "5137", "1409", "1828", "5776", "5175", "2012", "1421", "2118", "4442", "2327"
+].join(",");
 
 const environment = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -50,15 +54,30 @@ const environment = z.object({
   FRONTEND_ORIGINS: z.string().default("").transform((value) => value.split(",").map((origin) => origin.trim()).filter(Boolean)),
   REPORT_TOKEN_SECRET: z.string().min(32).optional(),
   REPORT_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
-  FREE_DRAFT_IP_DAILY: z.coerce.number().int().positive().default(5),
-  FREE_DRAFT_TARGET_DAILY: z.coerce.number().int().positive().default(10),
-  FREE_DRAFT_GLOBAL_DAILY: z.coerce.number().int().positive().default(60),
+  // Retention is executed by the existing reconciliation loop. This controls
+  // how often that loop performs the (potentially heavier) database sweep.
+  RETENTION_CLEANUP_INTERVAL_MS: z.coerce.number().int().positive().default(86_400_000),
+  FREE_DISCOVERY_CLIENT_DAILY: z.coerce.number().int().positive().default(20),
+  FREE_DISCOVERY_TARGET_HOURLY: z.coerce.number().int().positive().default(10),
+  FREE_DISCOVERY_GLOBAL_EMERGENCY_DAILY: z.coerce.number().int().positive().default(5_000),
+  COHORT_TARGET_HOURLY: z.coerce.number().int().positive().default(10),
+  COHORT_GLOBAL_DAILY: z.coerce.number().int().positive().default(500),
+  PAID_VERIFICATION_PAYER_PER_MINUTE: z.coerce.number().int().positive().default(30),
+  PAID_VERIFICATION_TARGET_PER_HOUR: z.coerce.number().int().positive().default(10),
   MONITOR_INTERVAL_S: z.coerce.number().int().positive().default(1_800),
   MONITOR_DURATION_DAYS: z.coerce.number().int().positive().default(7),
   MONITOR_SCHEDULER_TICK_MS: z.coerce.number().int().positive().default(10_000),
   MONITOR_CONCURRENCY: z.coerce.number().int().positive().max(10).default(3),
   PLAYGROUND_PER_IP_DAILY: z.coerce.number().int().positive().default(3),
   PLAYGROUND_GLOBAL_DAILY: z.coerce.number().int().positive().default(200),
+  AGENT_RESOLUTION_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+  ONCHAINOS_COMMAND: z.string().min(1).default("onchainos"),
+  COHORT_SCAN_INTERVAL_MS: z.coerce.number().int().positive().default(21_600_000),
+  COHORT_SEED_AGENT_IDS: z.string().default(defaultCohortSeedAgentIds),
+  COHORT_OPERATOR_TOKEN: z.string().min(24).optional(),
+  COHORT_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+  PASSPORT_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  SELF_CHECK_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   X_LAYER_RPC_URL: z.string().url().default("https://xlayerrpc.okx.com")
 });
 

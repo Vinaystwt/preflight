@@ -9,6 +9,7 @@ export const metadata: Metadata = {
 
 const SECTIONS = [
   ["quickstart", "Quickstart"],
+  ["prerequisites", "Prerequisites"],
   ["concepts", "Core concepts"],
   ["criteria", "Check criteria"],
   ["agent-id", "Agent ID import"],
@@ -19,8 +20,15 @@ const SECTIONS = [
   ["api", "verify_release API"],
   ["machine", "Machine report and CI"],
   ["receipts", "Signed receipts"],
+  ["verify-receipt", "Public receipt verifier"],
   ["mcp", "MCP server"],
   ["report", "Report schema"],
+  ["cohort", "Cohort endpoint"],
+  ["asp", "Per-ASP endpoint"],
+  ["passport", "Passport endpoint"],
+  ["benchmark", "Benchmark endpoint"],
+  ["self-check", "Self-check endpoint"],
+  ["badge", "Public badge embed"],
   ["troubleshooting", "Troubleshooting"],
   ["security", "Security"],
 ] as const;
@@ -120,10 +128,142 @@ const MCP_TOOL = `// PreFlight exposed as an MCP tool
 }
 // returns { decision, report_id, receipt_id, badge_url }`;
 
+const VERIFY_RECEIPT_REQ = `POST https://api.usepreflight.xyz/api/v1/verify-receipt
+content-type: application/json
+
+{ "receipt_id": "rcpt_..." }
+
+// or GET https://api.usepreflight.xyz/api/v1/verify-receipt?receipt_id=rcpt_...
+
+// response
+{
+  "signature_valid": true,
+  "issuer": "https://api.usepreflight.xyz",
+  "key_id": "preflight-v4-production-20260713",
+  "key_status": "active",
+  "payload_hash_matches": true,
+  "not_expired": true,
+  "snapshot_binding": { "manifest_hash": "sha256:...", "snapshot_hash": "sha256:..." },
+  "policy_version": "preflight.release-policy.v1",
+  "scope": {
+    "proves": ["issuer_authenticity", "payload_integrity", "snapshot_binding", "policy_binding"],
+    "does_not_prove": ["semantic_correctness_of_delivery", "future_behaviour", "security_of_target", "marketplace_endorsement"],
+    "policy_version": "preflight.release-policy.v1",
+    "snapshot_hash": "sha256:...",
+    "valid_until": "..."
+  },
+  "verified_at": "...",
+  "how_to_verify_offline": "node --input-type=module -e '...' "
+}`;
+
+const COHORT_SHAPE = `GET https://api.usepreflight.xyz/api/v1/cohort
+
+{
+  "schema_version": "preflight.cohort.v1",
+  "generated_at": "...",
+  "policy_version": "preflight.release-policy.v1",
+  "totals": {
+    "listed_asps": 25,
+    "with_runtime_evidence": 14,
+    "conforming": 0,
+    "with_contradictions": 13,
+    "unknown": 12,
+    "unreachable": 11
+  },
+  "conforming": [
+    { "agent_id": "...", "name": "...", "last_checked": "...", "permalink": "/asp/..." }
+  ],
+  "contradiction_summary": [
+    { "criterion_code": "LST-04", "count": 13, "plain": "Listing service type differs from the observed surface form" }
+  ],
+  "drift_events_24h": 2
+}`;
+
+const ASP_SHAPE = `GET https://api.usepreflight.xyz/api/v1/asp/{agent_id}
+
+// non-conforming (evidence exists)
+{
+  "schema_version": "preflight.asp.v1",
+  "agent_id": "2013",
+  "runtime_evidence": "available",
+  "last_checked": "...",
+  "criterion_codes": ["LST-01", "LST-04"],
+  "owner_claim_cta": "Are you the owner? Authorize a full check..."
+}
+
+// conforming
+{
+  "schema_version": "preflight.asp.v1",
+  "agent_id": "...",
+  "runtime_evidence": "conforming",
+  "name": "...",
+  "category_code": "...",
+  "last_checked": "...",
+  "detail": { ...declared vs observed evidence... },
+  "latest_receipt_id": "rcpt_..."
+}
+
+// never scanned
+{ "schema_version": "preflight.asp.v1", "agent_id": "...", "runtime_evidence": "none" }`;
+
+const PASSPORT_SHAPE = `GET https://api.usepreflight.xyz/api/v1/passport/{agent_id}
+
+// empty state (normal)
+{ "schema_version": "preflight.passport.v1", "state": "none",
+  "message": "No owner-authorized passport has been issued." }
+
+// active
+{ "schema_version": "preflight.passport.v1", "state": "active",
+  "agent_id": "...", "decision": "RELEASE",
+  "receipt_id": "rcpt_...", "policy_version": "preflight.release-policy.v1",
+  "valid_until": "...", "issued_at": "..." }`;
+
+const BENCHMARK_SHAPE = `GET https://api.usepreflight.xyz/api/v1/benchmark
+
+{
+  "schema_version": "preflight.benchmark.v1",
+  "policy_version": "preflight.release-policy.v1",
+  "generated_at": "...",
+  "total_fixtures": 5,
+  "passing": 4,
+  "cases": [
+    {
+      "case_id": "wrong_amount",
+      "seeded_fault": "x402 amount differs from manifest",
+      "expected_decision": "BLOCK",
+      "expected_codes": ["PAYMENT_AMOUNT"],
+      "actual_decision": "BLOCK",
+      "actual_codes": ["PAYMENT_AMOUNT"],
+      "passes": true
+    }
+  ]
+}`;
+
+const SELF_CHECK_SHAPE = `GET https://api.usepreflight.xyz/api/v1/self-check
+
+{
+  "schema_version": "preflight.self-check.v1",
+  "report_id": "pfr_...",
+  "receipt_id": "rcpt_...",
+  "decision": "RELEASE",
+  "settlement_ref": "0x...",
+  "label": "SELF_CHECK_PRODUCTION",
+  "customer_demand": false,
+  "published_at": "...",
+  "evidence": { "journey": [ { "step": "reach_endpoint", "status": "ok", "observed": "...", "t_ms": 1 } ] }
+}`;
+
+const BADGE_EMBED = `<!-- 88x28 SVG, no capability token required -->
+<img src="https://api.usepreflight.xyz/api/v1/badge/{agent_id}.svg"
+     width="88" height="28" alt="PreFlight passport" />
+
+<!-- markdown -->
+![PreFlight passport](https://api.usepreflight.xyz/api/v1/badge/{agent_id}.svg)`;
+
 export default function DocsPage() {
   return (
-    <div className="mx-auto grid w-full max-w-[1200px] gap-10 px-5 py-12 sm:px-6 md:grid-cols-[210px_1fr]">
-      <aside className="md:sticky md:top-20 md:h-fit">
+    <div className="mx-auto grid w-full max-w-[1200px] gap-10 px-5 py-12 sm:px-6 md:grid-cols-[minmax(0,210px)_minmax(0,1fr)]">
+      <aside className="min-w-0 md:sticky md:top-20 md:max-h-[calc(100vh-5rem)] md:overflow-y-auto">
         <p className="t-label mb-3 text-tertiary">Documentation</p>
         <nav aria-label="Docs sections">
           <ul className="flex flex-col gap-0.5 border-l border-border">
@@ -138,7 +278,7 @@ export default function DocsPage() {
         </nav>
       </aside>
 
-      <div className="min-w-0 max-w-[68ch]">
+      <div className="min-w-0 w-full max-w-[68ch]">
         <h1 className="t-h1 text-primary">Documentation</h1>
         <p className="t-lead mt-3 text-secondary">Everything to prepare, run, and read a PreFlight check, plus the frozen API and CI integration.</p>
 
@@ -146,6 +286,18 @@ export default function DocsPage() {
           <P>Discovery is free and needs no account. Point it at a public endpoint:</P>
           <CodeBlock className="my-4" code={DISCOVER_REQ} label="discover" />
           <P>Discovery returns the observed surface and a proposed manifest with per field provenance. Confirm the manifest, then run the paid check from your agent (below). You receive a private report link.</P>
+        </Doc>
+
+        <Doc id="prerequisites" title="Prerequisites">
+          <P className="mb-4">What you need before running a full, paid check.</P>
+          <List items={[
+            ["Network and asset", "X Layer (eip155:196), USDT0 at 0x779ded0c9e1022225f8e0630b35a9b54be713736. All amounts are in this asset."],
+            ["Wallet funding", "Your agent's wallet needs 0.10 USDT on X Layer to pay the check fee over x402. This fee is separate from any target spend below."],
+            ["Client flow", "Run the check from your agent (verify_release API), the CLI, or an MCP-connected agent. Free discovery works from a browser; the paid check requires a wallet, so it does not run from the website."],
+            ["Owner attestation", "To have PreFlight act as a real buyer against your target (settlement and delivery proof), set authorize_buyer_proof and owner_attestation to true in the request. Without both, buyer-proof does not run and settlement and delivery are reported UNKNOWN."],
+            ["Target spend cap", "When buyer-proof is authorized, PreFlight's own buyer wallet pays your target. Spend is capped at 2 USDT per target and 10 USDT globally per day, isolated from the 0.10 USDT service fee."],
+            ["Retry and failure", "A check that never runs is not charged. If settlement does not confirm, retry with the same idempotency key rather than a new request."],
+          ]} />
         </Doc>
 
         <Doc id="concepts" title="Core concepts">
@@ -193,12 +345,18 @@ export default function DocsPage() {
           <CodeBlock className="my-4" code={CI} label="ci" />
         </Doc>
 
-        <Doc id="receipts" title="Signed receipts">
-          <P>Every check issues an Ed25519 signed receipt. It carries the decision, the manifest and snapshot hashes it judged, the policy version, and the signing key ID. Anyone can verify it against PreFlight&apos;s published keys, offline of the report.</P>
+        <Doc id="receipts" title="PreFlight Signed Receipt v1">
+          <P>Every completed full verification issues a PreFlight Signed Receipt v1 (Ed25519). Free discovery does not issue a receipt. A receipt carries the decision, the manifest and snapshot hashes it judged, the policy version, and the signing key ID. Anyone can verify that this receipt was issued by PreFlight, has not been altered, and applies to the identified runtime snapshot and policy version, offline of the report.</P>
           <CodeBlock className="my-4" code={RECEIPT_SHAPE} label="receipt.v1" />
           <P>Verification is four steps, and the report page runs them in your browser:</P>
           <CodeBlock className="my-4" code={RECEIPT_VERIFY} label="verify" />
           <P>Public keys are served at <Code>/api/v1/pubkeys</Code>, and a receipt envelope by ID at <Code>/api/v1/receipts/&#123;id&#125;</Code>. A RELEASE also issues an embeddable badge; see <Link href="/cli" className="text-accent underline underline-offset-2 decoration-[color-mix(in_srgb,var(--accent)_45%,transparent)] hover:decoration-accent">the CLI</Link> to verify from a terminal.</P>
+        </Doc>
+
+        <Doc id="verify-receipt" title="Public receipt verifier">
+          <P>The public verifier lets anyone confirm a receipt without an account or a capability token. Point a browser at <Link href="/verify" className="text-accent underline underline-offset-2 hover:text-primary">/verify</Link>, or call the API directly:</P>
+          <CodeBlock className="my-4" code={VERIFY_RECEIPT_REQ} label="verify-receipt" />
+          <P>The response reports signature validity, whether the payload has been altered, expiration, and the scope: what a receipt proves and, deliberately, what it does not.</P>
         </Doc>
 
         <Doc id="mcp" title="MCP server">
@@ -210,6 +368,39 @@ export default function DocsPage() {
         <Doc id="report" title="Report schema">
           <P>The report envelope, abbreviated:</P>
           <CodeBlock className="my-4" code={REPORT_SHAPE} label="release-report.v1" />
+        </Doc>
+
+        <Doc id="cohort" title="Cohort endpoint">
+          <P>Aggregate runtime evidence across every listed OKX.AI ASP, gathered by free discovery. <Code>conforming</Code> may name each service; <Code>contradiction_summary</Code> is criterion codes and counts only. A named ASP will never appear in the contradictions section.</P>
+          <CodeBlock className="my-4" code={COHORT_SHAPE} label="cohort.v1" />
+          <P>Rendered at <Link href="/cohort" className="text-accent underline underline-offset-2 hover:text-primary">/cohort</Link>.</P>
+        </Doc>
+
+        <Doc id="asp" title="Per-ASP endpoint">
+          <P><Code>GET /api/v1/asp/&#123;agent_id&#125;</Code> returns the runtime evidence state for one listed service. A conforming service exposes its declared/observed detail. A non-conforming service exposes only the criterion codes that surfaced at the last scan and an owner-claim CTA. No names are shamed.</P>
+          <CodeBlock className="my-4" code={ASP_SHAPE} label="asp.v1" />
+          <P>Permalinks live at <Link href="/asp/2013" className="text-accent underline underline-offset-2 hover:text-primary">/asp/&#123;agent_id&#125;</Link>.</P>
+        </Doc>
+
+        <Doc id="passport" title="Passport endpoint">
+          <P><Code>GET /api/v1/passport/&#123;agent_id&#125;</Code> returns an owner-authorized, scoped passport when one exists, or an honest empty state. A passport carries the latest receipt, the policy version, and the expiry.</P>
+          <CodeBlock className="my-4" code={PASSPORT_SHAPE} label="passport.v1" />
+        </Doc>
+
+        <Doc id="benchmark" title="Benchmark endpoint">
+          <P>The adversarial corpus: seeded faults with expected decisions, run against the current policy. Every fixture appears with its expected and actual result. Failing fixtures render as failing. A benchmark that only shows green is not evidence.</P>
+          <CodeBlock className="my-4" code={BENCHMARK_SHAPE} label="benchmark.v1" />
+          <P>Rendered at <Link href="/benchmark" className="text-accent underline underline-offset-2 hover:text-primary">/benchmark</Link>.</P>
+        </Doc>
+
+        <Doc id="self-check" title="Self-check endpoint">
+          <P>The last operator-funded PreFlight self-verification. It is dogfooding evidence, not demand evidence, and the API returns <Code>customer_demand:false</Code> on purpose.</P>
+          <CodeBlock className="my-4" code={SELF_CHECK_SHAPE} label="self-check.v1" />
+        </Doc>
+
+        <Doc id="badge" title="Public badge embed">
+          <P><Code>GET /api/v1/badge/&#123;agent_id&#125;.svg</Code> serves an 88×28 SVG badge for services whose owner has authorized a passport. No capability token is required. A missing passport returns <Code>404</Code>; an expired or revoked one returns a <Code>STALE</Code> badge.</P>
+          <CodeBlock className="my-4" code={BADGE_EMBED} label="badge.svg" />
         </Doc>
 
         <Doc id="troubleshooting" title="Troubleshooting">
@@ -245,15 +436,15 @@ function P({ children, className }: { children: React.ReactNode; className?: str
   return <p className={`t-body text-[15px] leading-[1.65] text-secondary ${className ?? ""}`}>{children}</p>;
 }
 function Code({ children }: { children: React.ReactNode }) {
-  return <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[0.85em] text-primary">{children}</code>;
+  return <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[0.85em] text-primary break-all">{children}</code>;
 }
 function List({ items }: { items: [string, string][] }) {
   return (
     <dl className="flex flex-col gap-3">
       {items.map(([t, d]) => (
-        <div key={t} className="grid gap-x-4 sm:grid-cols-[180px_1fr]">
-          <dt className="t-ui text-primary">{t}</dt>
-          <dd className="t-body text-[15px] text-secondary">{d}</dd>
+        <div key={t} className="grid gap-x-4 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)]">
+          <dt className="min-w-0 t-ui text-primary">{t}</dt>
+          <dd className="min-w-0 break-words t-body text-[15px] text-secondary">{d}</dd>
         </div>
       ))}
     </dl>

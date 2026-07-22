@@ -146,7 +146,7 @@ export function HeroLoop({ demo = false }: { demo?: boolean }) {
       tl.set(q(".status-line"), { background: "var(--release-fg)" });
       tl.fromTo(q(".scan"), { opacity: 0.9, y: 0 }, { y: "100%", opacity: 0, duration: 0.3, ease: "none" });
       tl.to(q(".verdict-release"), { opacity: 1, scale: 1, duration: 0.44, ease: "power3.out" }, "<");
-      // receipt issuance: the proof slides up after RELEASE locks (P0.4)
+      // receipt issuance: the signed receipt slides up after RELEASE locks (P0.4)
       tl.to(q(".receipt-preview"), { opacity: 1, height: "auto", duration: 0.34, ease: "power2.out" }, "+=0.15");
       tl.to({}, { duration: 1.45 * scale });
       }, root);
@@ -234,7 +234,7 @@ export function HeroLoop({ demo = false }: { demo?: boolean }) {
           <div className="receipt-preview overflow-hidden border-t border-sep px-4" style={{ opacity: 0, height: 0 }}>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
               <span className="t-label text-accent">SIGNED RECEIPT</span>
-              <span className="t-evidence text-tertiary">BILL_OF_LADING · pfr_01KXBP…051PN · Ed25519</span>
+              <span className="t-evidence text-tertiary">PREFLIGHT_SIGNED_RECEIPT · pfr_01KXBP…051PN · Ed25519</span>
               <span className="inline-flex items-center gap-1 t-evidence text-release">SIGNATURE VALID</span>
               <span className="t-evidence text-tertiary">sha256:f1afc114…2bde0fc8</span>
             </div>

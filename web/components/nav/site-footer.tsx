@@ -12,18 +12,21 @@ const COLS = [
     ],
   },
   {
+    head: "Evidence",
+    links: [
+      { href: "/cohort", label: "Cohort" },
+      { href: "/verify", label: "Verify a receipt" },
+      { href: "/benchmark", label: "Benchmark" },
+      { href: "/gallery", label: "Gallery" },
+    ],
+  },
+  {
     head: "Developers",
     links: [
       { href: "/docs", label: "Docs" },
       { href: "/docs#api", label: "verify_release API" },
       { href: "/cli", label: "CLI" },
       { href: "/docs#mcp", label: "MCP server" },
-      { href: "/gallery", label: "Gallery" },
-    ],
-  },
-  {
-    head: "Legal",
-    links: [
       { href: "/legal/privacy", label: "Privacy" },
       { href: "/legal/terms", label: "Terms" },
     ],
@@ -33,7 +36,7 @@ const COLS = [
 export function SiteFooter() {
   return (
     <footer className="mt-24 border-t border-border">
-      <div className="mx-auto grid w-full max-w-[1520px] gap-10 px-5 py-14 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+      <div className="mx-auto grid w-full max-w-[1520px] gap-10 px-5 py-14 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1.1fr]">
         <div className="max-w-xs">
           <Wordmark href={null} />
           <p className="t-body mt-3 text-[15px] text-secondary">
@@ -58,10 +61,7 @@ export function SiteFooter() {
       </div>
       <div className="mx-auto w-full max-w-[1520px] border-t border-sep px-5 py-6 sm:px-6">
         <p className="t-evidence text-tertiary">
-          Payments settle in USDT on X Layer via x402. Registered on OKX.AI.{" "}
-          <a href="https://x.com/vinaystwt" target="_blank" rel="noopener noreferrer" className="text-secondary underline underline-offset-2 hover:text-primary">
-            @vinaystwt
-          </a>
+          Payments settle in USDT on X Layer via x402. Submitted to OKX.AI as ASP #5161. Listing under review.
         </p>
       </div>
     </footer>

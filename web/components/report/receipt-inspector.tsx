@@ -17,9 +17,11 @@ type VState =
 export function ReceiptInspector({
   receipt,
   reportHashes,
+  verifyUrl,
 }: {
   receipt: Receipt;
   reportHashes?: { manifest_hash?: string; snapshot_hash?: string };
+  verifyUrl?: string | null;
 }) {
   const [v, setV] = useState<VState>({ k: "idle" });
   const [fp, setFp] = useState<string>("");
@@ -56,7 +58,7 @@ export function ReceiptInspector({
       <div className="mb-3 flex items-center gap-2">
         <ShieldCheck className="size-4 text-accent" aria-hidden />
         <h2 className="t-h3 text-[17px] text-primary">Signed receipt</h2>
-        <span className="t-ui text-tertiary">Portable proof anyone can verify</span>
+        <span className="t-ui text-tertiary">Portable signed receipt: issuer and payload integrity</span>
       </div>
 
       <div className="mx-auto max-w-[820px] overflow-hidden rounded-lg" style={{ background: "var(--surface-1)", border: "1px solid var(--border-strong)", boxShadow: "inset 0 1px 0 0 var(--top-highlight)" }}>
@@ -64,7 +66,7 @@ export function ReceiptInspector({
         <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
           <div>
             <p className="t-label text-tertiary">PreFlight · Signed receipt</p>
-            <p className="t-evidence text-tertiary">BILL_OF_LADING · {p.type}</p>
+            <p className="t-evidence text-tertiary">PREFLIGHT_SIGNED_RECEIPT · {p.type}</p>
           </div>
           <VerdictStamp decision={p.decision} size="sm" />
         </div>
@@ -125,6 +127,15 @@ export function ReceiptInspector({
             {v.k === "verifying" ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ShieldCheck className="size-4" aria-hidden />}
             {v.k === "verifying" ? "Verifying" : "Verify receipt"}
           </button>
+          {verifyUrl ? (
+            <a href={verifyUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 t-ui text-tertiary transition-colors hover:bg-surface-2 hover:text-secondary">
+              Open public verifier <ExternalLink className="size-3.5" aria-hidden />
+            </a>
+          ) : (
+            <a href={`/verify?receipt_id=${encodeURIComponent(p.receipt_id)}`} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 t-ui text-tertiary transition-colors hover:bg-surface-2 hover:text-secondary">
+              Open public verifier <ExternalLink className="size-3.5" aria-hidden />
+            </a>
+          )}
           <ActionBtn icon={Download} label="Download JSON" onClick={() => downloadJson(receipt)} />
           <ActionBtn icon={KeyRound} label="View public key" onClick={async () => { await ensureKeys(); setShowKey((s) => !s); }} />
           {p.chain_anchor && (

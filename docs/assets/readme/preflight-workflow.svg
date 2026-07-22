@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="720" viewBox="0 0 1600 720" role="img" aria-labelledby="title desc">
   <title id="title">PreFlight workflow separating free discovery from paid release verification</title>
-  <desc id="desc">Two-lane workflow: free discovery submits an endpoint, discovers the live contract, and reviews a proposed manifest; paid verification starts the release check, verifies payment settlement and delivery, and returns a verdict with signed proof.</desc>
+  <desc id="desc">Two-lane workflow: free discovery submits an endpoint, discovers the live contract, and reviews a proposed manifest; paid verification starts the release check, verifies payment settlement and delivery, and returns a verdict with a PreFlight Signed Receipt.</desc>
   <defs>
     <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
       <path d="M44 0H0V44" fill="none" stroke="#2A323C" stroke-width="1" opacity=".28"/>
@@ -52,7 +52,7 @@
   <g transform="translate(1130 448)">
     <rect width="376" height="150" rx="24" class="panel" stroke="#2A323C"/>
     <text x="28" y="55" fill="#9B8CFF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Arial,sans-serif" font-size="34" font-weight="800">06</text>
-    <text x="88" y="54" class="text" font-size="25" font-weight="760">Receive verdict and signed proof</text>
+    <text x="88" y="54" class="text" font-size="25" font-weight="760">Receive verdict and signed receipt</text>
     <text x="88" y="92" class="sub" font-size="18">Evidence + remediation + receipt</text>
     <g transform="translate(88 112)">
       <rect width="70" height="24" rx="12" fill="#153326" stroke="#55D6A5"/><text x="35" y="17" text-anchor="middle" fill="#55D6A5" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Arial,sans-serif" font-size="11" font-weight="800">RELEASE</text>

@@ -26,7 +26,7 @@ describe("Release Gate security shutdown", () => {
     const { app } = await buildServer({ NODE_ENV: "test", BUILD_SHA: "abcdef1" });
     try {
       const health = await app.inject({ method: "GET", url: "/health" });
-      expect(health.json()).toEqual({ ok: true, build_sha: "abcdef1", db: "disabled", settlement_listener: "disabled", release_reconciliation: "disabled" });
+      expect(health.json()).toEqual({ ok: true, build_sha: "abcdef1", db: "disabled", settlement_listener: "disabled", release_reconciliation: "disabled", cohort_scheduler: "disabled" });
       expect(health.body).not.toContain("attestation");
       expect(health.body).not.toContain("monitor");
       expect((await app.inject({ method: "GET", url: "/livez" })).statusCode).toBe(200);

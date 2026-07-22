@@ -84,7 +84,7 @@ export class SafeEgressClient {
     this.options = { deadlineMs: options.deadlineMs ?? 12_000, maxResponseBytes: options.maxResponseBytes ?? 1_000_000, maxCompressedBytes: options.maxCompressedBytes ?? 512_000, maxRedirects: options.maxRedirects ?? 3, maxRequests: options.maxRequests ?? 4, userAgent: options.userAgent ?? "PreFlight/2.0 (+https://usepreflight.xyz)" };
     this.resolver = options.resolver ?? new Resolver(); this.requestOnce = options.requestOnce ?? nodeRequest;
   }
-  async postJson(target: string, value: unknown, redirectPolicy: "NONE" | "SAME_ORIGIN" = "NONE"): Promise<SafeResponse> {
+  async postJson(target: string, value: unknown, redirectPolicy: "NONE" | "SAME_ORIGIN" = "NONE", requestOptions: { userAgent?: string } = {}): Promise<SafeResponse> {
     const requested = new URL(target);
     if (requested.protocol !== "https:" || requested.username || requested.password) throw new EgressPolicyError("TARGET_REJECTED", "Target must be HTTPS and contain no credentials");
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), this.options.deadlineMs); const started = performance.now();
@@ -93,7 +93,10 @@ export class SafeEgressClient {
       for (let count = 0; count < this.options.maxRequests; count += 1) {
         const answers = await resolveAll(current.hostname, this.resolver); answers.forEach(({ address }) => addresses.add(address));
         const pinned = answers[0]!;
-        const raw = await this.requestOnce(current, pinned.address, pinned.family, body, controller.signal, this.options);
+        // Callers may select a more specific product identity for an internally
+        // defined probe class. This value is never taken from an HTTP request.
+        const options = requestOptions.userAgent ? { ...this.options, userAgent: requestOptions.userAgent } : this.options;
+        const raw = await this.requestOnce(current, pinned.address, pinned.family, body, controller.signal, options);
         if ([301, 302, 303, 307, 308].includes(raw.status)) {
           const location = header(raw.headers, "location");
           if (!location) throw new EgressPolicyError("REDIRECT_MALFORMED", "Redirect omitted Location");
@@ -104,12 +107,19 @@ export class SafeEgressClient {
           if (redirects.includes(next.href) || next.href === current.href) throw new EgressPolicyError("REDIRECT_LOOP", "Redirect loop detected");
           redirects.push(next.href); current = next; continue;
         }
-        return { requestedUrl: requested.href, finalUrl: current.href, status: raw.status, headers: raw.headers, body: decompress(raw, this.options.maxResponseBytes), redirects, resolvedAddresses: [...addresses], durationMs: Math.round(performance.now() - started) };
+        return { requestedUrl: requested.href, finalUrl: current.href, status: raw.status, headers: raw.headers, body: decompress(raw, options.maxResponseBytes), redirects, resolvedAddresses: [...addresses], durationMs: Math.round(performance.now() - started) };
       }
       throw new EgressPolicyError("REQUEST_LIMIT", "Target exceeded maximum request count");
     } catch (error) {
       if (controller.signal.aborted) throw new EgressPolicyError("TIMEOUT", "Target request exceeded total deadline");
-      throw error;
+      if (error instanceof EgressPolicyError) throw error;
+      const code = typeof (error as { code?: unknown }).code === "string" ? (error as { code: string }).code : "";
+      if (!code) throw error;
+      if (["ETIMEDOUT", "ESOCKETTIMEDOUT"].includes(code)) throw new EgressPolicyError("TIMEOUT", "Target request exceeded total deadline");
+      if (["ECONNRESET", "EPIPE"].includes(code)) throw new EgressPolicyError("CONNECTION_RESET", "Target connection reset before a complete response");
+      if (["CERT_HAS_EXPIRED", "DEPTH_ZERO_SELF_SIGNED_CERT", "UNABLE_TO_VERIFY_LEAF_SIGNATURE", "SELF_SIGNED_CERT_IN_CHAIN"].includes(code)) throw new EgressPolicyError("TLS_INVALID", "Target TLS certificate could not be verified");
+      if (["ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH"].includes(code)) throw new EgressPolicyError("UNREACHABLE", "Target could not be reached");
+      throw new EgressPolicyError("NETWORK_ERROR", "Target request failed before a complete response");
     } finally { clearTimeout(timer); }
   }
 }

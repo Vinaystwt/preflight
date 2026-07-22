@@ -28,19 +28,19 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://usepreflight.xyz"),
   alternates: { canonical: "/" },
   title: {
-    default: "PreFlight — a release gate that behaves like a real customer",
+    default: "PreFlight, a release gate that behaves like a real customer",
     template: "%s · PreFlight",
   },
   description:
     "Deployed is not sellable. PreFlight discovers what your agent service actually does, acts as a real paying buyer, and returns RELEASE, BLOCK, or UNKNOWN with the exact fix.",
   openGraph: {
-    title: "PreFlight — a release gate that behaves like a real customer",
+    title: "PreFlight, a release gate that behaves like a real customer",
     description: "Deployed is not sellable. Prove your service is buyable before it goes live.",
     url: "https://usepreflight.xyz",
     siteName: "PreFlight",
     type: "website",
   },
-  twitter: { card: "summary_large_image", creator: "@vinaystwt", site: "@vinaystwt" },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({

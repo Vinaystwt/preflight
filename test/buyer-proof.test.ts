@@ -43,6 +43,45 @@ describe("buyer proof guardrails", () => {
     expect(signed).toHaveLength(2);
   });
 
+  it("treats a duplicate replay fresh 402 challenge as safe without requiring a second settlement", async () => {
+    const events: Array<{ event: string; metadata?: Record<string, unknown> }> = [];
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers ?? (_input instanceof Request ? _input.headers : undefined));
+      const signature = headers.get("payment-signature");
+      if (!signature) return new Response(JSON.stringify({ error: "pay" }), { status: 402, headers: { "payment-required": header() } });
+      if (headers.get("idempotency-key")?.includes("duplicate")) return new Response(JSON.stringify({ error: "fresh challenge" }), { status: 402, headers: { "payment-required": header() } });
+      return new Response(JSON.stringify({ schema_version: "target.result.v1", ok: true }), { status: 200, headers: { "payment-response": receipt } });
+    });
+    const repo = repository();
+    const buyer = createBuyerProofClient(config(), repo, fetcher as typeof fetch)!;
+    const artifact = await buyer.prove({ runId: "pfr_test", target: manifestFixture.target.endpoint, body: { ok: true }, audit: async (event, metadata) => { events.push({ event, metadata }); } });
+    expect(artifact.normalized).toMatchObject({ authorized: true, status: "DELIVERED", delivery_status: 200, duplicate_replay_status: 402, duplicate_replay_payment_required: true, duplicate_replay_payment_response: false, duplicate_replay_safe: true, settlement_reference: "0xsettled" });
+    expect(repo.updateBuyerProofSpend).toHaveBeenCalledTimes(1);
+    expect(events.find((item) => item.event === "BUYER_REPLAYED")?.metadata).toMatchObject({ duplicate_status: 402, duplicate_payment_required: true, duplicate_payment_response: false, duplicate_replay_safe: true });
+  });
+
+  it("blocks buyer delivery when duplicate replay returns another deliverable", async () => {
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers ?? (_input instanceof Request ? _input.headers : undefined));
+      const signature = headers.get("payment-signature");
+      if (!signature) return new Response(JSON.stringify({ error: "pay" }), { status: 402, headers: { "payment-required": header() } });
+      return new Response(JSON.stringify({ schema_version: "target.result.v1", ok: true, duplicate: headers.get("idempotency-key")?.includes("duplicate") ?? false }), { status: 200, headers: { "payment-response": receipt } });
+    });
+    const buyer = createBuyerProofClient(config(), repository(), fetcher as typeof fetch)!;
+    const artifact = await buyer.prove({ runId: "pfr_dup", target: manifestFixture.target.endpoint, body: { ok: true }, audit: async () => undefined });
+    expect(artifact.normalized).toMatchObject({ authorized: true, status: "DUPLICATE_REPLAY_NOT_REJECTED", delivery_status: 200, duplicate_replay_status: 200, duplicate_replay_safe: false });
+  });
+
+  it("marks buyer delivery MATCH for explicit duplicate rejection and fresh x402 replay challenges only", () => {
+    const base = { authorized: true, delivery_status: 200, settlement_reference: "0xsettled", receipt_status: "success" };
+    const explicit = evaluateCriteria(manifestFixture, [{ kind: "BUYER_PROOF", source: manifestFixture.target.endpoint, id: "buyer_409", captured_at: new Date().toISOString(), digest: "sha256:buyer409", normalized: { ...base, status: "DELIVERED", duplicate_replay_status: 409, duplicate_replay_payment_response: false } }], { buyerAuthorized: true });
+    expect(explicit.find((item) => item.code === "BUYER_DELIVERY")?.state).toBe("MATCH");
+    const fresh402 = evaluateCriteria(manifestFixture, [{ kind: "BUYER_PROOF", source: manifestFixture.target.endpoint, id: "buyer_402", captured_at: new Date().toISOString(), digest: "sha256:buyer402", normalized: { ...base, status: "DELIVERED", duplicate_replay_status: 402, duplicate_replay_payment_required: true, duplicate_replay_payment_response: false } }], { buyerAuthorized: true });
+    expect(fresh402.find((item) => item.code === "BUYER_DELIVERY")?.state).toBe("MATCH");
+    const ambiguous402 = evaluateCriteria(manifestFixture, [{ kind: "BUYER_PROOF", source: manifestFixture.target.endpoint, id: "buyer_ambiguous", captured_at: new Date().toISOString(), digest: "sha256:buyerambiguous", normalized: { ...base, status: "DELIVERED", duplicate_replay_status: 402 } }], { buyerAuthorized: true });
+    expect(ambiguous402.find((item) => item.code === "BUYER_DELIVERY")?.state).toBe("CONTRADICTION");
+  });
+
   it("aborts before signing if challenge terms change after authorization", async () => {
     let challengeCount = 0; let signed = false;
     const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -81,12 +120,12 @@ describe("buyer proof guardrails", () => {
     ]);
   });
 
-  it("rejects authorize_buyer_proof without owner_attestation before payment", async () => {
+  it("does not expose buyer-proof validation from an unavailable payment service", async () => {
     const app = Fastify();
     mountReleaseGate(app, config(), null, { gateway: null, buyerProof: null });
     const response = await app.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "idempotency-key": "buyer-owner-test-0001" }, payload: { schema_version: "preflight.verify-release-request.v1", endpoint: manifestFixture.target.endpoint, authorize_buyer_proof: true } });
-    expect(response.statusCode).toBe(400);
-    expect(response.json()).toMatchObject({ error: { code: "BUYER_OWNER_ATTESTATION_REQUIRED", charge_status: "NOT_CHARGED" } });
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toMatchObject({ error: { code: "PAYMENT_SERVICE_UNAVAILABLE", charge_status: "NOT_CHARGED" } });
     await app.close();
   });
 });

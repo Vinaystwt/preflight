@@ -34,8 +34,37 @@ describe("Release Gate discovery", () => {
     expect(discovery.proposed_manifest.fields["payment.mode"]).toMatchObject({ confidence: "unknown", requires_confirmation: true });
   });
 
-  it("captures missing 402 as an observed free HTTP surface", async () => {
+  it("keeps commercial terms unknown when a target responds without a valid x402 challenge", async () => {
     const discovery = await discoverReleaseSurface({ endpoint: "https://free.example/run", client: client([response(200), response(200), response(404), response(404)]) });
-    expect(discovery.proposed_manifest.manifest).toMatchObject({ target: { interface_mode: "FREE_HTTP" }, payment: { mode: "FREE" } });
+    expect(discovery.observed_surface.x402.status).toBe(200);
+    expect(discovery.proposed_manifest.manifest).toBeUndefined();
+    expect(discovery.proposed_manifest.fields["payment.mode"]).toMatchObject({ source: "runtime", confidence: "unknown", requires_confirmation: true });
+  });
+
+  it.each([200, 401, 403, 404, 429, 500])("does not infer free payment terms from HTTP %i", async (status) => {
+    const discovery = await discoverReleaseSurface({ endpoint: `https://status-${status}.example/run`, client: client([response(status), response(status), response(404), response(404)]) });
+    expect(discovery.observed_surface.x402.status).toBe(status);
+    expect(discovery.proposed_manifest.manifest).toBeUndefined();
+    expect(discovery.proposed_manifest.fields["payment.mode"]).toMatchObject({ confidence: "unknown", requires_confirmation: true });
+  });
+
+  it.each([
+    ["timeout", new Error("aborted"), "TIMEOUT"],
+    ["dns failure", null, "DNS_FAIL"],
+    ["tls failure", Object.assign(new Error("self signed"), { code: "DEPTH_ZERO_SELF_SIGNED_CERT" }), "TLS_INVALID"],
+    ["connection reset", Object.assign(new Error("reset"), { code: "ECONNRESET" }), "CONNECTION_RESET"]
+  ])("records %s as unavailable evidence, not observed payment terms", async (_name, thrown, code) => {
+    const failing = new SafeEgressClient({
+      resolver: thrown === null ? { resolve4: async () => [], resolve6: async () => [] } : resolver,
+      deadlineMs: 1,
+      requestOnce: async () => {
+        if ((thrown as Error).message === "aborted") await new Promise((resolve) => setTimeout(resolve, 10));
+        throw thrown;
+      }
+    });
+    const discovery = await discoverReleaseSurface({ endpoint: "https://broken.example/run", client: failing });
+    expect(discovery.observed_surface.x402.parse_error).toBe(code);
+    expect(discovery.proposed_manifest.manifest).toBeUndefined();
+    expect(discovery.proposed_manifest.fields["payment.mode"]).toMatchObject({ confidence: "unknown", requires_confirmation: true });
   });
 });

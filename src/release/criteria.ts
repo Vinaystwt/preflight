@@ -35,6 +35,13 @@ function accepts(artifact: EvidenceArtifact | undefined): Array<Record<string, u
 function evidenceRefs(artifact: EvidenceArtifact | undefined) {
   return artifact ? [{ id: artifact.id, source: artifact.source, captured_at: artifact.captured_at, digest: artifact.digest, summary: `${artifact.kind} runtime evidence`, freshness_seconds: 0 }] : [];
 }
+function safeDuplicateReplay(normalized: Record<string, unknown>): boolean {
+  if (normalized.duplicate_replay_safe === true) return true;
+  const duplicateStatus = Number(normalized.duplicate_replay_status);
+  if (duplicateStatus === 409) return normalized.duplicate_replay_payment_response !== true;
+  if (duplicateStatus === 402) return normalized.duplicate_replay_payment_required === true && normalized.duplicate_replay_payment_response !== true;
+  return false;
+}
 function stateFor(definition: CriterionDefinition, expected: JsonValue | undefined, artifact: EvidenceArtifact | undefined, manifest: ReleaseManifestV1): { state: CriterionState; observed?: JsonValue; limitation?: string } {
   if (expected === undefined) return { state: "NOT_APPLICABLE" };
   if (!artifact) return { state: "UNKNOWN", limitation: `Required ${definition.evidence} evidence is unavailable.` };
@@ -59,8 +66,9 @@ function stateFor(definition: CriterionDefinition, expected: JsonValue | undefin
     const authorized = normalized.authorized === true;
     if (!authorized) return { state: "UNKNOWN", limitation: "Buyer proof was not authorized for this run." };
     if (normalized.status === "BUYER_CAP_EXCEEDED" || normalized.status === "BUYER_TERMS_CHANGED") return { state: "CONTRADICTION", observed: normalized.status as JsonValue };
-    const delivered = normalized.status === "DELIVERED" && Number(normalized.delivery_status) >= 200 && Number(normalized.delivery_status) < 300 && Number(normalized.duplicate_replay_status) === 409;
-    return { state: delivered ? "MATCH" : "CONTRADICTION", observed: { status: normalized.status, delivery_status: normalized.delivery_status ?? null, duplicate_replay_status: normalized.duplicate_replay_status ?? null } as JsonValue };
+    const deliveryStatus = Number(normalized.delivery_status);
+    const delivered = normalized.status === "DELIVERED" && deliveryStatus >= 200 && deliveryStatus < 300 && safeDuplicateReplay(normalized);
+    return { state: delivered ? "MATCH" : "CONTRADICTION", observed: { status: normalized.status, delivery_status: normalized.delivery_status ?? null, duplicate_replay_status: normalized.duplicate_replay_status ?? null, duplicate_replay_payment_required: normalized.duplicate_replay_payment_required ?? null, duplicate_replay_payment_response: normalized.duplicate_replay_payment_response ?? null, duplicate_replay_safe: normalized.duplicate_replay_safe ?? null } as JsonValue };
   }
   if (definition.code === "PAYMENT_MODE") { const x402 = Number(normalized.status) === 402 && accepts(artifact).length > 0; const match = manifest.payment.mode === "X402" ? x402 : !x402; return { state: match ? "MATCH" : "CONTRADICTION", observed: x402 ? "X402" : "FREE" }; }
   const field = definition.code === "PAYMENT_NETWORK" ? "network" : definition.code === "PAYMENT_ASSET" ? "asset" : definition.code === "PAYMENT_AMOUNT" ? "amount" : "payTo";
@@ -88,4 +96,25 @@ export function aggregateDecision(criteria: CriterionResult[]): ReleaseDecision 
   if (mandatory.some((criterion) => criterion.state === "CONTRADICTION")) return "BLOCK";
   if (mandatory.some((criterion) => criterion.state === "UNKNOWN")) return "UNKNOWN";
   return mandatory.every((criterion) => criterion.state === "MATCH") ? "RELEASE" : "UNKNOWN";
+}
+
+function listingCriterion(code: string, state: CriterionState, expected: JsonValue | undefined, observed: JsonValue | undefined, consequence: string, remediation: string): CriterionResult {
+  return { code, group: "listing", state, mandatory: true, expected, observed, provenance: ["OPERATOR_SUPPLIED", "OBSERVED", "DERIVED"], comparison_rule: "Listing-declared A2MCP service values equal unauthenticated runtime evidence.", consequence: state === "CONTRADICTION" ? consequence : undefined, remediation: state === "CONTRADICTION" || state === "UNKNOWN" ? remediation : undefined, evidence_refs: [], limitation: state === "UNKNOWN" ? "Listing declaration or runtime evidence was unavailable." : undefined };
+}
+function atomicFee(fee: string | null): string | null { if (!fee || !/^\d+(?:\.\d+)?$/.test(fee)) return null; const [whole, fraction = ""] = fee.split("."); return `${whole}${(fraction + "000000").slice(0, 6)}`.replace(/^0+(?=\d)/, ""); }
+export function evaluateListingCriteria(values: { endpoint: string; fee: string | null; asset: string | null; type: string | null }, artifacts: EvidenceArtifact[]): CriterionResult[] {
+  const transport = artifacts.find((artifact) => artifact.kind === "TRANSPORT")?.normalized as Record<string, unknown> | undefined;
+  const x402 = artifacts.find((artifact) => artifact.kind === "X402")?.normalized as Record<string, unknown> | undefined;
+  const mcp = artifacts.find((artifact) => artifact.kind === "MCP")?.normalized as Record<string, unknown> | undefined;
+  const entries = Array.isArray(x402?.accepts) ? x402.accepts.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object")) : [];
+  const amounts = entries.map((item) => item.amount).filter((value): value is string => typeof value === "string"); const assets = entries.map((item) => item.asset).filter((value): value is string => typeof value === "string"); const fee = atomicFee(values.fee);
+  const finalUrl = typeof transport?.final_url === "string" ? transport.final_url : undefined; const mcpObserved = Array.isArray(mcp?.tools);
+  const reachable = Boolean(finalUrl || x402?.status);
+  return [
+    listingCriterion("LST-01", fee ? (amounts.includes(fee) ? "MATCH" : amounts.length ? "CONTRADICTION" : "UNKNOWN") : "UNKNOWN", fee ?? undefined, amounts, "A buyer could be charged a different amount than the listing declares.", "Align the listing fee and the x402 challenge amount."),
+    listingCriterion("LST-02", values.asset ? (assets.some((asset) => asset.toLowerCase() === values.asset!.toLowerCase()) ? "MATCH" : assets.length ? "CONTRADICTION" : "UNKNOWN") : "UNKNOWN", values.asset ?? undefined, assets, "A buyer could be charged an asset different from the listing declaration.", "Align the listing asset contract and the x402 challenge asset."),
+    listingCriterion("LST-03", finalUrl ? (finalUrl === values.endpoint ? "MATCH" : "CONTRADICTION") : "UNKNOWN", values.endpoint, finalUrl, "A buyer could reach a destination different from the listed endpoint.", "Set the listing endpoint to the responding HTTPS service."),
+    listingCriterion("LST-04", values.type === "A2MCP" ? (mcpObserved ? "MATCH" : "CONTRADICTION") : "NOT_APPLICABLE", values.type ?? undefined, mcpObserved ? "MCP" : "ROUTE_HTTP", "Agents could be offered an A2MCP listing whose observed surface is not MCP.", "Expose the declared MCP surface or correct the listing service type."),
+    listingCriterion("LST-05", reachable ? "MATCH" : "CONTRADICTION", values.endpoint, finalUrl, "A buyer cannot call the service declared in the listing.", "Restore the declared endpoint before offering the service.")
+  ];
 }

@@ -47,11 +47,22 @@ Authorization: Bearer <capability-token>
 ```text
 GET /api/v1/pubkeys
 GET /api/v1/receipts/{receipt_id}
+GET /api/v1/verify-receipt?receipt_id={receipt_id}
+POST /api/v1/verify-receipt
 GET /api/v1/gallery
-GET /api/v1/badge/{report_id}.svg?token=...
+GET /api/v1/passport/{agent_id}
+GET /api/v1/badge/{agent_id}.svg
+GET /api/v1/asp/{agent_id}
+GET /api/v1/cohort
+GET /api/v1/benchmark
+GET /api/v1/self-check
 ```
 
-Badges remain private unless the report capability token is supplied. Gallery publication is opt-in.
+`GET /api/v1/receipts/{receipt_id}` returns the signed receipt envelope.
+`GET /api/v1/verify-receipt?receipt_id=...` returns the public verification result used by durable receipt links.
+`POST /api/v1/verify-receipt` accepts JSON clients that prefer a request body.
+
+Passport badges are public only for eligible Agent-ID RELEASE passports. Gallery publication is opt-in.
 
 ## Contracts
 

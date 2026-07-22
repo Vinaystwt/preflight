@@ -6,13 +6,13 @@
   <p><strong>Your first real customer before launch.</strong></p>
 
   <p>
-    PreFlight discovers what a paid agent service actually exposes, optionally completes a bounded real payment, verifies settlement and delivery, and returns RELEASE, BLOCK, or UNKNOWN with criterion-level evidence, remediation, and signed proof.
+    PreFlight discovers what a paid agent service actually exposes, completes a bounded real payment, verifies settlement and delivery, and returns RELEASE, BLOCK, or UNKNOWN with criterion-level evidence, remediation, and a PreFlight Signed Receipt.
   </p>
 
   <p>
     <a href="https://usepreflight.xyz">Launch PreFlight</a>
     ·
-    <a href="docs/api.md">Documentation</a>
+    <a href="https://usepreflight.xyz/docs">Documentation</a>
     ·
     <a href="https://api.usepreflight.xyz/api/v1/service">Hosted API</a>
     ·
@@ -27,6 +27,7 @@
     <img alt="MCP hosted" src="https://img.shields.io/badge/MCP-hosted-9B8CFF">
   </p>
 
+  <p><sub>Submitted to OKX.AI as ASP #5161. Listing under review.</sub></p>
   <p><sub>Source is publicly available for review. No license for reuse, modification, or redistribution is granted unless stated otherwise.</sub></p>
 </div>
 
@@ -52,9 +53,9 @@ PreFlight separates free discovery from paid release verification. Nothing is ch
 
 ![PreFlight workflow separating free discovery from paid release verification](docs/assets/readme/preflight-workflow.svg)
 
-1. Submit a public endpoint.
+1. Submit a public endpoint or an OKX.AI Agent ID.
 2. Discover the live service contract.
-3. Review a proposed manifest with provenance.
+3. Review a proposed manifest with per-field provenance.
 4. Confirm the release check and complete the x402 payment.
 5. Optionally authorize bounded buyer proof against the target service.
 6. Receive a decision, criterion evidence, remediation, and a signed receipt.
@@ -81,39 +82,46 @@ PreFlight separates free discovery from paid release verification. Nothing is ch
 
 Each decision is built from criterion-level states:
 
-- `MATCH` — observed production behavior matches the declaration
-- `CONTRADICTION` — observed production behavior conflicts with the declaration
-- `UNKNOWN` — there is not enough safe evidence
-- `NOT_APPLICABLE` — the criterion does not apply to this surface
+- `MATCH` -- observed production behavior matches the declaration
+- `CONTRADICTION` -- observed production behavior conflicts with the declaration
+- `UNKNOWN` -- there is not enough safe evidence
+- `NOT_APPLICABLE` -- the criterion does not apply to this surface
 
 ![PreFlight report showing verdict, criterion evidence, remediation, and signed receipt](docs/assets/readme/preflight-evidence.png)
 
-_Real product output: verdict, criterion evidence, remediation, and signed proof._
+_Real product output: verdict, criterion evidence, remediation, and a PreFlight Signed Receipt._
 
 ## Key capabilities
 
-- **Discovery-first input** — start with a public endpoint rather than a hand-authored manifest.
-- **Proposed manifest with provenance** — inferred fields show where they came from and whether confirmation is required.
-- **Bounded buyer proof** — with owner attestation and spend limits, PreFlight can pay and take delivery like a real customer.
-- **Deterministic verdicts** — RELEASE, BLOCK, or UNKNOWN from criterion states, not an opaque aggregate score.
-- **Actionable remediation** — contradictions include observed evidence and the exact issue to fix.
-- **Signed receipts** — Ed25519 signatures over canonical JSON, verifiable outside the report page.
-- **Private reports** — bearer capability tokens protect non-public report data.
-- **Agent-native access** — use the hosted API, MCP endpoint, or npm CLI.
-- **Portable proof** — opt-in badges and gallery entries expose only approved release evidence.
+- **Discovery-first input** -- start with a public endpoint or an OKX.AI Agent ID rather than a hand-authored manifest.
+- **Agent ID resolution** -- pass a numeric Agent ID and PreFlight resolves the listing to its live endpoint, pre-filling manifest fields with observed provenance.
+- **Proposed manifest with provenance** -- inferred fields show where they came from and whether confirmation is required.
+- **Bounded buyer proof** -- with owner attestation and spend limits, PreFlight can pay and take delivery like a real customer.
+- **Deterministic verdicts** -- RELEASE, BLOCK, or UNKNOWN from criterion states, not an opaque aggregate score.
+- **Actionable remediation** -- contradictions include observed evidence and the exact issue to fix.
+- **Signed receipts** -- Ed25519 signatures over canonical JSON, verifiable outside the report page.
+- **Public receipt verifier** -- anyone can verify a receipt at [/verify](https://usepreflight.xyz/verify) without an account or token.
+- **Cohort scan** -- free discovery runs across every listed OKX.AI ASP, with conforming services named and contradictions reported as codes and counts only.
+- **Per-ASP permalinks** -- each agent has a permalink at `/asp/{agent_id}` showing its runtime evidence state.
+- **Passport** -- owner-authorized, scoped release passport tied to a receipt and policy version.
+- **Badge embed** -- 88x28 SVG badge at `/api/v1/badge/{agent_id}.svg` for services with an active passport.
+- **Benchmark corpus** -- adversarial fixtures with seeded faults, tested against the current policy; failing fixtures render as failing.
+- **Self-check** -- operator-funded dogfooding verification with `customer_demand: false`, published for transparency.
+- **Private reports** -- bearer capability tokens protect non-public report data.
+- **Agent-native access** -- use the hosted API, MCP endpoint, or npm CLI.
 
 ## Use PreFlight your way
 
 | Surface | Best for | Entry point |
 | --- | --- | --- |
-| Web | Interactive discovery and human-readable reports | `https://usepreflight.xyz` |
+| Web | Interactive discovery and human-readable reports | [usepreflight.xyz](https://usepreflight.xyz) |
 | API | Programmatic release checks | `https://api.usepreflight.xyz` |
 | MCP | Agent-native discovery and verification | `https://api.usepreflight.xyz/mcp` |
 | CLI | Local workflows and CI integration | `@vinaystwt/preflight-cli` |
 
 #### Web
 
-Open https://usepreflight.xyz, paste a public endpoint, and review the proposed manifest. Discovery is free. A full release verification costs 0.10 USDT.
+Open [usepreflight.xyz](https://usepreflight.xyz), paste a public endpoint or an OKX.AI Agent ID, and review the proposed manifest. Discovery is free. A full release verification is 0.10 USDT over x402.
 
 #### API
 
@@ -123,6 +131,21 @@ curl -s https://api.usepreflight.xyz/api/v1/contracts/release-manifest/v1 | jq
 ```
 
 POST /api/v1/verify-release is the paid x402 release-check endpoint. An unpaid request returns a payment challenge; a funded client replays the request with the required payment proof.
+
+Public endpoints (no auth required):
+
+| Endpoint | Description |
+| --- | --- |
+| `GET /api/v1/cohort` | Aggregate runtime evidence across listed OKX.AI ASPs |
+| `GET /api/v1/asp/{agent_id}` | Runtime evidence for a single agent |
+| `GET /api/v1/passport/{agent_id}` | Owner-authorized passport for a single agent |
+| `GET /api/v1/benchmark` | Adversarial fixture corpus results |
+| `GET /api/v1/self-check` | Latest operator-funded self-verification |
+| `GET /api/v1/verify-receipt?receipt_id=...` | Public receipt verifier |
+| `POST /api/v1/verify-receipt` | Public receipt verifier for JSON clients |
+| `GET /api/v1/receipts/{receipt_id}` | Raw signed receipt envelope |
+| `GET /api/v1/pubkeys` | Ed25519 signing keys |
+| `GET /api/v1/badge/{agent_id}.svg` | Embeddable passport badge |
 
 See [docs/api.md](docs/api.md).
 
@@ -164,15 +187,16 @@ Web, CLI, and MCP clients call the Fastify API. Discovery uses guarded egress to
 
 See [docs/architecture.md](docs/architecture.md).
 
-## Signed receipts
+## PreFlight Signed Receipts
 
-Every completed verification can issue a portable receipt:
+Every completed verification issues a portable receipt. Anyone can verify that this receipt was issued by PreFlight, has not been altered, and applies to the identified runtime snapshot and policy version. It does not establish that PreFlight observed correctly, that the policy is correct, or that a target is safe.
 
-- canonical JSON with sorted keys;
-- SHA-256 payload hash;
-- Ed25519 signature;
-- public verification keys at `GET /api/v1/pubkeys`;
-- public receipt lookup at `GET /api/v1/receipts/{receipt_id}`.
+- Canonical JSON with sorted keys
+- SHA-256 payload hash
+- Ed25519 signature
+- Public verification keys at `GET /api/v1/pubkeys`
+- Public receipt lookup at `GET /api/v1/receipts/{receipt_id}`
+- Public verifier at [usepreflight.xyz/verify](https://usepreflight.xyz/verify)
 
 See [docs/receipts.md](docs/receipts.md) and [docs/cli.md](docs/cli.md).
 
@@ -244,7 +268,6 @@ test/                Backend and release-gate tests
 - Gallery entries are opt-in.
 - Chain anchoring is disabled unless explicitly configured and proven.
 - Browser receipt verification may fall back honestly if local Ed25519 support is unavailable.
-- The CLI is published as `@vinaystwt/preflight-cli@0.1.0`; documented commands are limited to verified registry behavior.
 
 ## License
 

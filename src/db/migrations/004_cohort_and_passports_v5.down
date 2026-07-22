@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS benchmark_runs;
+DROP TABLE IF EXISTS passports;
+DROP TABLE IF EXISTS drift_events;
+DROP TABLE IF EXISTS cohort_results;
+DROP TABLE IF EXISTS cohort_scans;
+DROP TABLE IF EXISTS agent_resolutions;

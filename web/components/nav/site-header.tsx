@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Cta } from "@/components/cta";
 import { Wordmark } from "./wordmark";
 import { DevelopersMenu } from "./developers-menu";
+import { MobileNav } from "./mobile-nav";
 
 export function SiteHeader() {
   return (
@@ -25,6 +26,7 @@ export function SiteHeader() {
           <Cta href="/check" size="sm" className="ml-1">
             Run a check
           </Cta>
+          <MobileNav />
         </nav>
       </div>
     </header>

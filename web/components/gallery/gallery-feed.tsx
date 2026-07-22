@@ -124,6 +124,7 @@ function RefRow({ archetype }: { archetype: ReferenceArchetype }) {
           <span className="t-body block truncate text-[14px] text-primary">{archetype.title}</span>
           <span className="t-evidence block truncate text-tertiary">{archetype.why}</span>
         </span>
+        <span className="t-label shrink-0 text-tertiary" title="Synthetic reference archetype, not a real report">SYNTHETIC</span>
         <StatusChip decision={archetype.decision} />
         <ChevronRight className={cn("size-4 shrink-0 text-tertiary transition-transform", open && "rotate-90")} aria-hidden />
       </button>

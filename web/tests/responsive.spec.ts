@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { fulfillReport } from "./report-fulfill";
 
 const WIDTHS = [375, 768, 1024, 1440];
-const ROUTES = ["/", "/check", "/how-it-works", "/pricing", "/demo", "/docs", "/legal/privacy", "/legal/terms"];
+const ROUTES = ["/", "/check", "/how-it-works", "/pricing", "/demo", "/docs", "/verify", "/cohort", "/benchmark", "/asp/2013", "/legal/privacy", "/legal/terms"];
 
 const overflow = (page: import("@playwright/test").Page) =>
   page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

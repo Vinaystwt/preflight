@@ -1,7 +1,7 @@
 import { createHash, createPrivateKey, createPublicKey, sign, verify, type KeyObject } from "node:crypto";
 import type { Config } from "../config.js";
 import { canonicalJson, type JsonValue } from "../contracts/canonical.js";
-import type { ReleaseDecision } from "../contracts/release-gate.js";
+import type { ReceiptScopeV1, ReleaseDecision } from "../contracts/release-gate.js";
 
 export interface ReceiptPayloadV1 {
   type: "preflight.receipt.v1";
@@ -18,6 +18,7 @@ export interface ReceiptPayloadV1 {
   issued_at: string;
   key_id: string;
   chain_anchor: { tx: string; contract: string } | null;
+  scope?: ReceiptScopeV1;
 }
 
 export interface ReceiptEnvelopeV1 {
@@ -46,6 +47,7 @@ export interface ReceiptInput {
   pay_to?: string | null;
   issued_at?: string;
   chain_anchor?: { tx: string; contract: string } | null;
+  valid_until?: string;
 }
 
 function sha256Hex(value: string): string {
@@ -77,6 +79,13 @@ export class ReceiptSigner {
 
   issue(input: ReceiptInput): ReceiptEnvelopeV1 {
     const issuedAt = input.issued_at ?? new Date().toISOString();
+    const scope: ReceiptScopeV1 = {
+      proves: ["issuer_authenticity", "payload_integrity", "snapshot_binding", "policy_binding"],
+      does_not_prove: ["semantic_correctness_of_delivery", "future_behaviour", "security_of_target", "marketplace_endorsement"],
+      policy_version: input.policy_version,
+      snapshot_hash: input.snapshot_hash,
+      valid_until: input.valid_until ?? new Date(Date.parse(issuedAt) + 30 * 86_400_000).toISOString()
+    };
     const base = {
       type: "preflight.receipt.v1" as const,
       report_id: input.report_id,
@@ -90,7 +99,8 @@ export class ReceiptSigner {
       target_fingerprint: targetFingerprint(input.target_endpoint, input.pay_to),
       issued_at: issuedAt,
       key_id: this.keyId,
-      chain_anchor: input.chain_anchor ?? null
+      chain_anchor: input.chain_anchor ?? null,
+      scope
     };
     const receiptId = `rcpt_${sha256Hex(canonicalJson(base as unknown as JsonValue)).slice(0, 32)}`;
     const payload: ReceiptPayloadV1 = { ...base, receipt_id: receiptId };

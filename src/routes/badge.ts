@@ -18,7 +18,7 @@ export function mountBadge(app: FastifyInstance, database: Database | null, conf
     <rect width="360" height="96" rx="8" fill="#101613" stroke="#32453b" stroke-width="2"/>
     <rect x="16" y="16" width="92" height="64" rx="4" fill="#103b26" stroke="#42f58d"/>
     <text x="62" y="59" fill="#42f58d" font-family="ui-monospace,monospace" font-size="34" font-weight="700" text-anchor="middle">GO</text>
-    <text x="128" y="39" fill="#d7e1db" font-family="ui-monospace,monospace" font-size="17" font-weight="700">PREFLIGHT CERTIFIED</text>
+    <text x="128" y="39" fill="#d7e1db" font-family="ui-monospace,monospace" font-size="17" font-weight="700">PREFLIGHT RELEASE</text>
     <text x="128" y="64" fill="#87a293" font-family="ui-monospace,monospace" font-size="13">LAST VERIFIED ${escapeXml(date)}</text>
   </a>
 </svg>`;

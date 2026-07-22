@@ -10,7 +10,7 @@ import {
 } from "../contracts/release-gate.js";
 import type { JsonValue } from "../contracts/canonical.js";
 import { mcpAdapter, transportAdapter, x402Adapter } from "./adapters.js";
-import type { EvidenceArtifact } from "./evidence.js";
+import { evidenceArtifact, type EvidenceArtifact } from "./evidence.js";
 
 function evidenceRefs(artifacts: EvidenceArtifact[]) {
   return artifacts.map((artifact) => ({ id: artifact.id, source: artifact.source, captured_at: artifact.captured_at, digest: artifact.digest, summary: `${artifact.kind} runtime evidence`, freshness_seconds: 0 }));
@@ -46,6 +46,12 @@ function operatorOverride<T>(operator: T | undefined, observed: T | undefined): 
   if (operator !== undefined) return { value: operator, source: "operator", confidence: "observed", requiresConfirmation: false };
   if (observed !== undefined) return { value: observed, source: "runtime", confidence: "observed", requiresConfirmation: false };
   return { value: undefined, source: "inferred", confidence: "unknown", requiresConfirmation: true };
+}
+function paymentModeField(expected: ManifestExpectationV1 | undefined, paymentMode: "X402" | undefined, status: number | undefined): ProposedManifestFieldV1 {
+  if (expected?.payment?.mode) return field(expected.payment.mode, "operator", "observed", false);
+  if (paymentMode) return field(paymentMode, "runtime", "observed", false);
+  if (status !== undefined) return field(undefined, "runtime", "unknown", true);
+  return field(undefined, "inferred", "unknown", true);
 }
 
 function applyExpected(manifest: ReleaseManifestV1, expected?: ManifestExpectationV1): ReleaseManifestV1 {
@@ -90,14 +96,14 @@ export async function discoverReleaseSurface(options: DiscoverOptions): Promise<
   const probeInput = options.probeInput ?? defaultDiscoveryProbeInput(options.endpoint);
   const artifacts: EvidenceArtifact[] = [];
   let transport: EvidenceArtifact | undefined; let x402: EvidenceArtifact | undefined; let mcp: EvidenceArtifact | undefined;
-  try { transport = await transportAdapter(client, options.endpoint, probeInput); artifacts.push(transport); } catch (cause) { if (!(cause instanceof EgressPolicyError)) throw cause; }
-  try { x402 = await x402Adapter(client, options.endpoint, probeInput); artifacts.push(x402); } catch (cause) { if (!(cause instanceof EgressPolicyError)) throw cause; }
-  try { mcp = await mcpAdapter(client, options.endpoint); artifacts.push(mcp); } catch (cause) { if (!(cause instanceof EgressPolicyError || cause instanceof SyntaxError)) throw cause; }
+  try { transport = await transportAdapter(client, options.endpoint, probeInput); artifacts.push(transport); } catch (cause) { if (!(cause instanceof EgressPolicyError)) throw cause; const artifact = evidenceArtifact("TRANSPORT", options.endpoint, { error: cause.code }); transport = artifact; artifacts.push(artifact); }
+  try { x402 = await x402Adapter(client, options.endpoint, probeInput); artifacts.push(x402); } catch (cause) { if (!(cause instanceof EgressPolicyError)) throw cause; const artifact = evidenceArtifact("X402", options.endpoint, { parse_error: cause.code, accepts: null }); x402 = artifact; artifacts.push(artifact); }
+  try { mcp = await mcpAdapter(client, options.endpoint); artifacts.push(mcp); } catch (cause) { if (!(cause instanceof EgressPolicyError || cause instanceof SyntaxError)) throw cause; const artifact = evidenceArtifact("MCP", options.endpoint, { error: cause instanceof EgressPolicyError ? cause.code : "MCP_PARSE_ERROR" }); mcp = artifact; artifacts.push(artifact); }
 
   const surface = paymentSurface(x402);
   const accepted = firstAccept(surface);
   const hasMcp = Array.isArray((mcp?.normalized as Record<string, unknown> | undefined)?.tools);
-  const paymentMode = surface.status === 402 ? accepted ? "X402" : undefined : "FREE";
+  const paymentMode = surface.status === 402 && accepted ? "X402" : undefined;
   const releaseName = options.expected?.release?.service_name ?? new URL(options.endpoint).hostname;
   const targetEndpoint = operatorOverride(options.expected?.target?.endpoint, options.endpoint);
   const interfaceMode = operatorOverride(options.expected?.target?.interface_mode, paymentMode ? hasMcp ? (paymentMode === "X402" ? "MCP_PLUS_X402_HTTP" : "MCP_PLUS_FREE_HTTP") : (paymentMode === "X402" ? "X402_HTTP" : "FREE_HTTP") : undefined);
@@ -113,7 +119,7 @@ export async function discoverReleaseSurface(options: DiscoverOptions): Promise<
     "target.method": field("POST", options.expected?.target?.method ? "operator" : "inferred", options.expected?.target?.method ? "observed" : "inferred", false),
     "target.interface_mode": field(interfaceMode.value, interfaceMode.source, interfaceMode.confidence, interfaceMode.requiresConfirmation),
     "target.redirect_policy": field(redirectPolicy.value, redirectPolicy.source, redirectPolicy.confidence, redirectPolicy.requiresConfirmation),
-    "payment.mode": field(options.expected?.payment?.mode ?? paymentMode, options.expected?.payment?.mode ? "operator" : paymentMode ? "runtime" : "inferred", paymentMode ? "observed" : "unknown", !paymentMode),
+    "payment.mode": paymentModeField(options.expected, paymentMode, surface.status),
     "payment.network": field(network.value, network.source === "runtime" ? "x402_challenge" : network.source, network.confidence, network.requiresConfirmation),
     "payment.asset": field(asset.value, asset.source === "runtime" ? "x402_challenge" : asset.source, asset.confidence, asset.requiresConfirmation),
     "payment.amount_atomic": field(amount.value, amount.source === "runtime" ? "x402_challenge" : amount.source, amount.confidence, amount.requiresConfirmation),
@@ -123,11 +129,21 @@ export async function discoverReleaseSurface(options: DiscoverOptions): Promise<
   };
 
   let manifest: ReleaseManifestV1 | undefined;
-  const selectedPaymentMode = options.expected?.payment?.mode ?? paymentMode;
+  const selectedPaymentMode: "X402" | "FREE" | undefined = options.expected?.payment?.mode ?? paymentMode;
   const payment = selectedPaymentMode === "X402" && completeX402({ network: network.value, asset: asset.value, amount_atomic: amount.value, pay_to: payTo.value })
     ? { mode: "X402" as const, network: network.value, asset: asset.value, amount_atomic: amount.value, pay_to: payTo.value }
-    : { mode: "FREE" as const };
-  const selectedInterface = interfaceMode.value ?? (payment.mode === "X402" ? "X402_HTTP" : paymentMode === "FREE" ? "FREE_HTTP" : undefined);
+    : selectedPaymentMode === "FREE" ? { mode: "FREE" as const } : undefined;
+  if (!payment) {
+    return discoveryResponseV1Schema.parse({
+      schema_version: "preflight.discovery.v1",
+      endpoint: options.endpoint,
+      observed_surface: { transport: transport?.normalized, mcp: mcp?.normalized, x402: surface },
+      proposed_manifest: { fields },
+      evidence_refs: evidenceRefs(artifacts),
+      generated_at: new Date().toISOString()
+    });
+  }
+  const selectedInterface = interfaceMode.value ?? (payment.mode === "X402" ? "X402_HTTP" : selectedPaymentMode === "FREE" ? "FREE_HTTP" : undefined);
   const target = {
     endpoint: targetEndpoint.value ?? options.endpoint,
     method: "POST" as const,

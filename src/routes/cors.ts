@@ -13,6 +13,13 @@ function corsPath(path: string): boolean {
     || path === "/api/v1/service"
     || path === "/api/v1/pubkeys"
     || path === "/api/v1/gallery"
+    || path === "/api/v1/resolve"
+    || path === "/api/v1/verify-receipt"
+    || path === "/api/v1/cohort"
+    || path.startsWith("/api/v1/asp/")
+    || path.startsWith("/api/v1/passport/")
+    || path === "/api/v1/benchmark"
+    || path === "/api/v1/self-check"
     || path.startsWith("/api/v1/contracts/")
     || path === "/api/v1/discover"
     || path === "/api/v1/release-manifests/draft"

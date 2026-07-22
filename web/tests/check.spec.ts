@@ -23,7 +23,7 @@ for (const size of [
         route.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(discovery) }),
       );
       await page.goto("/check");
-      const endpoint = page.getByLabel("Endpoint or Agent ID");
+      const endpoint = page.getByLabel(/Endpoint URL or OKX Agent ID/);
       await endpoint.fill("https://api.usepreflight.xyz/api/v1/verify-release");
       await expect(endpoint).toHaveValue("https://api.usepreflight.xyz/api/v1/verify-release");
       await page.getByRole("button", { name: "Discover" }).click();

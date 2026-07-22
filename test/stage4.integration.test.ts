@@ -47,7 +47,7 @@ describe("Stage 4", () => {
     const badge = await app.inject({ method: "GET", url: "/badge/target_GO1.svg" });
     expect(badge.statusCode).toBe(200);
     expect(badge.headers["cache-control"]).toBe("public, max-age=300");
-    expect(badge.body).toContain("PREFLIGHT CERTIFIED");
+    expect(badge.body).toContain("PREFLIGHT RELEASE");
     expect(badge.body).toContain("/r/pf_latest");
     expect((await app.inject({ method: "GET", url: "/badge/target_BAD.svg" })).statusCode).toBe(404);
     await app.close();

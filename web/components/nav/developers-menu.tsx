@@ -6,6 +6,9 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
+  { href: "/cohort", label: "Cohort", hint: "Runtime evidence across OKX.AI ASPs" },
+  { href: "/verify", label: "Verify a receipt", hint: "Public receipt verifier" },
+  { href: "/benchmark", label: "Benchmark", hint: "What PreFlight catches" },
   { href: "/cli", label: "CLI", hint: "Run it from your terminal or CI" },
   { href: "/docs#api", label: "verify_release API", hint: "One call, machine JSON" },
   { href: "/docs#mcp", label: "MCP server", hint: "Wire it into an agent" },

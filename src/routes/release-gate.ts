@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import type { FastifyInstance } from "fastify";
+import { Readable } from "node:stream";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z, ZodError } from "zod";
 import type { Config } from "../config.js";
 import { canonicalHash, type JsonValue } from "../contracts/canonical.js";
@@ -9,11 +10,15 @@ import { EgressPolicyError, SafeEgressClient } from "../egress/safe-client.js";
 import { createBuyerProofClient, type BuyerProofClient } from "../payments/buyer.js";
 import { createReleasePaymentGateway, type ReleasePaymentGateway } from "../payments/release-gateway.js";
 import { mcpAdapter, transportAdapter, x402Adapter } from "../release/adapters.js";
-import { aggregateDecision, evaluateCriteria, POLICY_VERSION } from "../release/criteria.js";
+import { aggregateDecision, evaluateCriteria, evaluateListingCriteria, POLICY_VERSION } from "../release/criteria.js";
 import { defaultDiscoveryProbeInput, discoverReleaseSurface } from "../release/discovery.js";
 import { evidenceArtifact } from "../release/evidence.js";
 import { ReleaseRepository } from "../release/repository.js";
 import { createReceiptSigner, type ReceiptEnvelopeV1, type ReceiptSigner } from "../receipts/signer.js";
+import { OnchainOsAgentResolver, selectA2McpService, type AgentResolver } from "../resolve/agent.js";
+import { FreeCohortScanner } from "../cohort.js";
+import { mountV5Routes, passportBadgeSvg } from "./v5.js";
+import { judgeResponse } from "../release/judge-response.js";
 
 function error(requestId: string, code: string, message: string, category: ApiErrorV1["error"]["category"], status: number, charge: ApiErrorV1["error"]["charge_status"] = "NOT_CHARGED", retryable = false) {
   return { status, body: apiErrorV1Schema.parse({ schema_version: "preflight.error.v1", error: { code, message, category, retryable, charge_status: charge, request_id: requestId } }) };
@@ -23,7 +28,7 @@ function group(criteria: CriterionResult[]) {
 }
 function payer(payload: unknown): string | undefined { const value = (payload as { payload?: { authorization?: { from?: unknown } } })?.payload?.authorization?.from; return typeof value === "string" ? value : undefined; }
 function complete(report: Omit<VerifyReleaseResponseV1, "report_access">, token: string, config: Config): VerifyReleaseResponseV1 {
-  const badge_url = config.BADGES_ENABLED && report.decision === "RELEASE" && report.receipt ? `https://${config.PUBLIC_DOMAIN}/api/v1/badge/${report.report_id}.svg?token=${encodeURIComponent(token)}` : (report.badge_url ?? null);
+  const badge_url = report.badge_url ?? null;
   return { ...report, badge_url, report_access: { report_url: `https://${config.PUBLIC_DOMAIN}/api/v1/reports/${report.report_id}`, access_token: token } };
 }
 function bearer(request: { headers: { authorization?: string | string[] }; query?: unknown }): string {
@@ -33,6 +38,31 @@ function bearer(request: { headers: { authorization?: string | string[] }; query
   return typeof token === "string" ? token : "";
 }
 const delay = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+const verifyReleaseAuth = new WeakMap<FastifyRequest, { paymentPayload: ReturnType<ReleasePaymentGateway["decode"]>; matched: Awaited<ReturnType<ReleasePaymentGateway["requirements"]>>[number]; verified: Awaited<ReturnType<ReleasePaymentGateway["verify"]>> }>();
+const verifyReleaseBody = new WeakMap<FastifyRequest, { ok: true; body: unknown } | { ok: false }>();
+function retryAfter(window: "day" | "hour" | "minute"): number {
+  const now = new Date();
+  if (window === "minute") return 60 - now.getUTCSeconds();
+  if (window === "hour") return (60 - now.getUTCMinutes() - 1) * 60 + (60 - now.getUTCSeconds());
+  return (24 - now.getUTCHours() - 1) * 3600 + (60 - now.getUTCMinutes() - 1) * 60 + (60 - now.getUTCSeconds());
+}
+async function parseAuthorizedBody(payload: AsyncIterable<Buffer>, contentType: string | string[] | undefined): Promise<{ ok: true; body: unknown } | { ok: false }> {
+  if (Array.isArray(contentType) || !contentType?.toLowerCase().includes("application/json")) return { ok: false };
+  const chunks: Buffer[] = []; let size = 0;
+  for await (const chunk of payload) {
+    size += chunk.length;
+    if (size > 1_000_000) return { ok: false };
+    chunks.push(chunk);
+  }
+  try { return { ok: true, body: JSON.parse(Buffer.concat(chunks).toString("utf8")) }; }
+  catch { return { ok: false }; }
+}
+function parsedPlaceholder(encodedLength: string | string[] | undefined) {
+  const replacement = Readable.from([Buffer.from("{}")]) as Readable & { receivedEncodedLength?: number };
+  const value = Array.isArray(encodedLength) ? encodedLength[0] : encodedLength;
+  replacement.receivedEncodedLength = value && /^\d+$/.test(value) ? Number(value) : 2;
+  return replacement;
+}
 const EVENT_STAGE: Partial<Record<string, RunStageEventV1["stage"]>> = {
   REQUEST_VALIDATED: "reachable", REACHABLE: "reachable", MCP_DISCOVERED: "mcp_discovered", CHALLENGE_PARSED: "challenge_parsed", SURFACE_RECONSTRUCTED: "surface_reconstructed",
   INTENT_RECONCILED: "intent_reconciled", DECISION_SEALED: "decision_sealed", PAYMENT_VERIFIED: "authorized", SETTLEMENT_PENDING: "paid", PAYMENT_SETTLED: "settled", PAYMENT_SETTLED_RECONCILED: "settled",
@@ -75,13 +105,23 @@ function redactedGalleryReport(report: Omit<VerifyReleaseResponseV1, "report_acc
   };
 }
 
-export interface ReleaseRouteOptions { gateway?: ReleasePaymentGateway | null; egress?: SafeEgressClient; buyerProof?: BuyerProofClient | null }
-export function mountReleaseGate(app: FastifyInstance, config: Config, database: Database | null, options: ReleaseRouteOptions = {}): { reconciliation: "disabled" | "idle" | "error"; stop(): void } {
-  const state: { reconciliation: "disabled" | "idle" | "error" } = { reconciliation: "disabled" };
+export interface ReleaseRouteOptions { gateway?: ReleasePaymentGateway | null; egress?: SafeEgressClient; buyerProof?: BuyerProofClient | null; agentResolver?: AgentResolver }
+export function mountReleaseGate(app: FastifyInstance, config: Config, database: Database | null, options: ReleaseRouteOptions = {}): { reconciliation: "disabled" | "idle" | "error"; cohort: "disabled" | "idle" | "error"; stop(): void } {
+  const state: { reconciliation: "disabled" | "idle" | "error"; cohort: "disabled" | "idle" | "error" } = { reconciliation: "disabled", cohort: "disabled" };
   const repository = database && config.REPORT_TOKEN_SECRET ? new ReleaseRepository(database.sql, config.REPORT_TOKEN_SECRET) : null;
   const gateway = options.gateway === undefined ? createReleasePaymentGateway(config) : options.gateway;
   const buyerProof = options.buyerProof === undefined && repository ? createBuyerProofClient(config, repository) : options.buyerProof;
   const egress = options.egress ?? new SafeEgressClient();
+  const agentResolver = options.agentResolver ?? new OnchainOsAgentResolver(config.ONCHAINOS_COMMAND);
+  const cohortScanner = repository ? new FreeCohortScanner(repository, agentResolver, egress, config) : undefined;
+  mountV5Routes(app, config, repository, cohortScanner);
+  let cohortTimer: NodeJS.Timeout | null = null;
+  const cohortIds = config.COHORT_SEED_AGENT_IDS.split(",").map((value) => value.trim()).filter(Boolean);
+  if (cohortScanner && config.COHORT_ENABLED && cohortIds.length) {
+    state.cohort = "idle";
+    const scan = () => { void cohortScanner.scan(cohortIds).catch((cause) => { state.cohort = "error"; app.log.error({ event: "cohort_scan_failed", err: cause }, "free cohort scan failed"); }); };
+    cohortTimer = setInterval(scan, config.COHORT_SCAN_INTERVAL_MS); cohortTimer.unref();
+  }
   const receiptSigner = createReceiptSigner(config);
   if (repository && receiptSigner) {
     void repository.upsertPubkey({ keyId: receiptSigner.keyId, publicKeyBase64: receiptSigner.publicKeyBase64 }).catch((cause) => {
@@ -91,24 +131,47 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
   let reconciliationTimer: NodeJS.Timeout | null = null;
   if (repository) {
     state.reconciliation = "idle";
-    const reconcile = async () => {
-      if (gateway) {
-        for (const item of await repository.ambiguousSettlements()) {
-          const settlement = await gateway.settlementStatus(item.reference);
-          if (settlement.status === "success") await repository.reconcileConfirmedSettlement(item.paymentId, item.runId, item.reference);
-        }
-      }
-      if (receiptSigner) {
-        for (const run of await repository.settledUnpublishedRuns()) {
-          if (!run.report) continue;
-          const finalReport = await issueReceiptForReport(run.report, receiptSigner);
-          if (finalReport !== run.report) await repository.updateReportAddenda(run.id, finalReport);
-          await repository.publish(run.id);
-        }
-      } else await repository.recoverSettledUnpublished();
+    let lastRetentionSweep = 0;
+    let reconciliationInFlight = false;
+    const sweepRetention = async () => {
+      if (Date.now() - lastRetentionSweep < config.RETENTION_CLEANUP_INTERVAL_MS) return;
+      const purged = await repository.purgeRetention(config.REPORT_RETENTION_DAYS);
+      lastRetentionSweep = Date.now();
+      app.log.info({ event: "retention_sweep_complete", retention_days: config.REPORT_RETENTION_DAYS, ...purged }, "retention sweep complete");
     };
-    void reconcile().catch((cause) => { state.reconciliation = "error"; app.log.error({ event: "release_reconciliation_failed", err: cause }, "release reconciliation failed"); });
-    reconciliationTimer = setInterval(() => { void reconcile().catch((cause) => { state.reconciliation = "error"; app.log.error({ event: "release_reconciliation_failed", err: cause }, "release reconciliation failed"); }); }, 5_000);
+    const reconcile = async () => {
+      try {
+        if (gateway) {
+          for (const item of await repository.ambiguousSettlements()) {
+            const settlement = await gateway.settlementStatus(item.reference);
+            if (settlement.status === "success") await repository.reconcileConfirmedSettlement(item.paymentId, item.runId, item.reference);
+          }
+        }
+        if (receiptSigner) {
+          for (const run of await repository.settledUnpublishedRuns()) {
+            if (!run.report) continue;
+            const finalReport = await issueReceiptForReport(run.report, receiptSigner);
+            if (finalReport !== run.report) await repository.updateReportAddenda(run.id, finalReport);
+            await repository.publish(run.id);
+          }
+        } else await repository.recoverSettledUnpublished();
+      } finally { await sweepRetention(); }
+    };
+    const runReconciliation = async () => {
+      if (reconciliationInFlight) return;
+      reconciliationInFlight = true;
+      try {
+        await reconcile();
+        state.reconciliation = "idle";
+      } catch (cause) {
+        state.reconciliation = "error";
+        app.log.error({ event: "release_reconciliation_failed", err: cause }, "release reconciliation failed");
+      } finally {
+        reconciliationInFlight = false;
+      }
+    };
+    setImmediate(() => { void runReconciliation(); });
+    reconciliationTimer = setInterval(() => { void runReconciliation(); }, 5_000);
     reconciliationTimer.unref();
   }
 
@@ -157,12 +220,48 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
       price_usdt: config.PRICE_VERIFY_RELEASE,
       target_endpoint: report.runtime_snapshot.requested_url,
       pay_to: payment.pay_to,
-      chain_anchor: null
+      chain_anchor: null,
+      valid_until: report.report_expires_at
     });
-    await repository.storeReceipt(report.report_id, receipt);
-    await repository.audit(report.report_id, "RECEIPT_SIGNED", { receipt_id: receipt.receipt_id, key_id: receipt.key_id, chain_anchor: null });
-    return { ...report, receipt, chain_anchor_tx: null };
+    const stored = await repository.storeReceipt(report.report_id, receipt);
+    if (stored.id === receipt.receipt_id) await repository.audit(report.report_id, "RECEIPT_SIGNED", { receipt_id: receipt.receipt_id, key_id: receipt.key_id, chain_anchor: null });
+    return { ...report, receipt: receiptEnvelopeFromStored(stored, config), chain_anchor_tx: stored.chain_anchor_tx };
   };
+
+  const verifyReleaseRequirements = async () => {
+    const resourceUrl = `https://${config.PUBLIC_DOMAIN}/api/v1/verify-release`;
+    return { resourceUrl, requirements: await gateway!.requirements(resourceUrl) };
+  };
+  const sendChallenge = async (request: FastifyRequest, reply: FastifyReply) => {
+    const { resourceUrl, requirements } = await verifyReleaseRequirements();
+    reply.header("PAYMENT-REQUIRED", await gateway!.challenge(requirements, resourceUrl));
+    return reply.code(402).send(error(request.id, "PAYMENT_REQUIRED", "Payment authorization is required.", "PAYMENT", 402).body);
+  };
+
+  app.addHook("preParsing", async (request, reply, payload) => {
+    if (request.method !== "POST" || request.url.split("?")[0] !== "/api/v1/verify-release") return payload;
+    if (!repository || !gateway) {
+      const failure = error(request.id, "PAYMENT_SERVICE_UNAVAILABLE", "Paid verification is not ready.", "DEPENDENCY", 503, "NOT_CHARGED", true);
+      reply.code(failure.status).send(failure.body);
+      return reply;
+    }
+    const signature = request.headers["payment-signature"];
+    if (typeof signature !== "string") return sendChallenge(request, reply);
+    try {
+      const paymentPayload = gateway.decode(signature);
+      const { requirements } = await verifyReleaseRequirements();
+      const matched = gateway.match(requirements, paymentPayload);
+      if (!matched) return sendChallenge(request, reply);
+      const verified = await gateway.verify(paymentPayload, matched);
+      if (!verified.valid) return sendChallenge(request, reply);
+      verifyReleaseAuth.set(request, { paymentPayload, matched, verified });
+      verifyReleaseBody.set(request, await parseAuthorizedBody(payload as AsyncIterable<Buffer>, request.headers["content-type"]));
+      return parsedPlaceholder(request.headers["content-length"]);
+    } catch (cause) {
+      request.log.warn({ event: "verify_release_payment_authorization_invalid_preparse", err: cause }, "invalid x402 authorization challenged before body parsing");
+      return sendChallenge(request, reply);
+    }
+  });
 
   app.post("/api/v1/discover", async (request, reply) => {
     try {
@@ -171,8 +270,12 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
       const target = new URL(parsed.endpoint).hostname;
       const concurrent = await repository.claimDraftConcurrency(target, request.id);
       if (!concurrent) { const failure = error(request.id, "DISCOVERY_CONCURRENCY_LIMITED", "Too many discovery requests are active for this target. Try again shortly.", "RATE_LIMIT", 429, "NOT_CHARGED", true); return reply.code(failure.status).send(failure.body); }
-      const checks = await Promise.all([repository.reserveRateLimit("discover_ip_day", request.ip, config.FREE_DRAFT_IP_DAILY), repository.reserveRateLimit("discover_target_day", target, config.FREE_DRAFT_TARGET_DAILY), repository.reserveRateLimit("discover_global_day", "global", config.FREE_DRAFT_GLOBAL_DAILY)]);
-      if (checks.some((check) => !check.allowed)) { await repository.releaseDraftConcurrency(target, request.id); const failure = error(request.id, "DISCOVERY_RATE_LIMITED", "The free discovery limit has been reached. Try again after the daily reset.", "RATE_LIMIT", 429); return reply.code(failure.status).send(failure.body); }
+      const clientLimit = await repository.reserveRateLimit("discover_client_day", request.ip, config.FREE_DISCOVERY_CLIENT_DAILY);
+      if (!clientLimit.allowed) { await repository.releaseDraftConcurrency(target, request.id); const failure = error(request.id, "DISCOVERY_CLIENT_RATE_LIMITED", "This browser has reached today's free discovery allowance. Paid verification is still available.", "RATE_LIMIT", 429); return reply.header("Retry-After", retryAfter("day")).code(failure.status).send(failure.body); }
+      const targetLimit = await repository.reserveRateLimit("discover_target_hour", target, config.FREE_DISCOVERY_TARGET_HOURLY, "hour");
+      if (!targetLimit.allowed) { await repository.releaseDraftConcurrency(target, request.id); const failure = error(request.id, "DISCOVERY_TARGET_RATE_LIMITED", "This endpoint has already been checked recently. Try again after the hourly pacing window.", "RATE_LIMIT", 429); return reply.header("Retry-After", retryAfter("hour")).code(failure.status).send(failure.body); }
+      const globalLimit = await repository.reserveRateLimit("discover_global_emergency_day", "global", config.FREE_DISCOVERY_GLOBAL_EMERGENCY_DAILY);
+      if (!globalLimit.allowed) { await repository.releaseDraftConcurrency(target, request.id); const failure = error(request.id, "DISCOVERY_GLOBAL_CAPACITY_LIMITED", "Free discovery is temporarily at capacity for everyone. This is a shared system limit, not your personal allowance.", "RATE_LIMIT", 429, "NOT_CHARGED", true); return reply.header("Retry-After", retryAfter("day")).code(failure.status).send(failure.body); }
       const discovered = await discoverReleaseSurface({ endpoint: parsed.endpoint, client: egress });
       await repository.releaseDraftConcurrency(target, request.id);
       return discovered;
@@ -188,8 +291,12 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
       const manifest = releaseManifestV1Schema.parse(request.body); const target = new URL(manifest.target.endpoint).hostname;
       const concurrent = await repository.claimDraftConcurrency(target, request.id);
       if (!concurrent) { const failure = error(request.id, "DRAFT_CONCURRENCY_LIMITED", "Too many draft requests are active for this target. Try again shortly.", "RATE_LIMIT", 429, "NOT_CHARGED", true); return reply.code(failure.status).send(failure.body); }
-      const checks = await Promise.all([repository.reserveRateLimit("draft_ip_day", request.ip, config.FREE_DRAFT_IP_DAILY), repository.reserveRateLimit("draft_target_day", target, config.FREE_DRAFT_TARGET_DAILY), repository.reserveRateLimit("draft_global_day", "global", config.FREE_DRAFT_GLOBAL_DAILY)]);
-      if (checks.some((check) => !check.allowed)) { await repository.releaseDraftConcurrency(target, request.id); const failure = error(request.id, "DRAFT_RATE_LIMITED", "The free manifest-draft limit has been reached. Try again after the daily reset.", "RATE_LIMIT", 429); return reply.code(failure.status).send(failure.body); }
+      const clientLimit = await repository.reserveRateLimit("draft_client_day", request.ip, config.FREE_DISCOVERY_CLIENT_DAILY);
+      if (!clientLimit.allowed) { await repository.releaseDraftConcurrency(target, request.id); const failure = error(request.id, "DRAFT_CLIENT_RATE_LIMITED", "This browser has reached today's free manifest-draft allowance. Paid verification is still available.", "RATE_LIMIT", 429); return reply.header("Retry-After", retryAfter("day")).code(failure.status).send(failure.body); }
+      const targetLimit = await repository.reserveRateLimit("draft_target_hour", target, config.FREE_DISCOVERY_TARGET_HOURLY, "hour");
+      if (!targetLimit.allowed) { await repository.releaseDraftConcurrency(target, request.id); const failure = error(request.id, "DRAFT_TARGET_RATE_LIMITED", "This endpoint has already been drafted recently. Try again after the hourly pacing window.", "RATE_LIMIT", 429); return reply.header("Retry-After", retryAfter("hour")).code(failure.status).send(failure.body); }
+      const globalLimit = await repository.reserveRateLimit("draft_global_emergency_day", "global", config.FREE_DISCOVERY_GLOBAL_EMERGENCY_DAILY);
+      if (!globalLimit.allowed) { await repository.releaseDraftConcurrency(target, request.id); const failure = error(request.id, "DRAFT_GLOBAL_CAPACITY_LIMITED", "Free manifest drafting is temporarily at capacity for everyone. This is a shared system limit, not your personal allowance.", "RATE_LIMIT", 429, "NOT_CHARGED", true); return reply.header("Retry-After", retryAfter("day")).code(failure.status).send(failure.body); }
       const digest = manifestHash(manifest); await repository.storeManifest(manifest, digest);
       await repository.releaseDraftConcurrency(target, request.id);
       return { schema_version: "preflight.release-manifest-draft.v1", complete: true, normalized_manifest: manifest, manifest_hash: digest, verdict: null };
@@ -199,9 +306,24 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
     }
   });
 
+  app.get("/api/v1/verify-release", async (request, reply) => {
+    if (!repository || !gateway) { const failure = error(request.id, "PAYMENT_SERVICE_UNAVAILABLE", "Paid verification is not ready.", "DEPENDENCY", 503, "NOT_CHARGED", true); return reply.header("Allow", "POST").code(failure.status).send(failure.body); }
+    reply.header("Allow", "POST").header("Cache-Control", "no-store").header("Access-Control-Expose-Headers", "PAYMENT-REQUIRED, Allow");
+    return sendChallenge(request, reply);
+  });
+
   app.post("/api/v1/verify-release", async (request, reply) => {
+    // The x402 challenge deliberately precedes all request validation. Buyers need
+    // the challenge to construct a valid authorization; an unpaying caller must
+    // therefore never be able to receive a schema error instead of the offer.
+    if (!repository || !gateway) { const failure = error(request.id, "PAYMENT_SERVICE_UNAVAILABLE", "Paid verification is not ready.", "DEPENDENCY", 503, "NOT_CHARGED", true); return reply.code(failure.status).send(failure.body); }
+    const authorization = verifyReleaseAuth.get(request);
+    if (!authorization) return sendChallenge(request, reply);
+    const { paymentPayload, matched, verified } = authorization;
+
+    const body = verifyReleaseBody.get(request);
     let parsed: ReturnType<typeof verifyReleaseRequestV1Schema.parse>;
-    try { parsed = verifyReleaseRequestV1Schema.parse(request.body); }
+    try { if (!body?.ok) throw new ZodError([]); parsed = verifyReleaseRequestV1Schema.parse(body.body); }
     catch (cause) { const failure = error(request.id, "VERIFY_REQUEST_INVALID", cause instanceof ZodError ? "Verify request validation failed." : "Invalid request.", "VALIDATION", 400); return reply.code(failure.status).send(failure.body); }
     const buyerRequested = "authorize_buyer_proof" in parsed && parsed.authorize_buyer_proof === true;
     const includeInGallery = "include_in_gallery" in parsed && parsed.include_in_gallery === true;
@@ -209,26 +331,36 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
       const failure = error(request.id, "BUYER_OWNER_ATTESTATION_REQUIRED", "Buyer proof requires owner_attestation:true before any outbound payment can be attempted.", "VALIDATION", 400);
       return reply.code(failure.status).send(failure.body);
     }
-    if (!repository || !gateway) { const failure = error(request.id, "PAYMENT_SERVICE_UNAVAILABLE", "Paid verification is not ready.", "DEPENDENCY", 503, "NOT_CHARGED", true); return reply.code(failure.status).send(failure.body); }
     const idempotencyKey = request.headers["idempotency-key"];
     if (typeof idempotencyKey !== "string" || idempotencyKey.length < 16) { const failure = error(request.id, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key must contain at least 16 characters.", "VALIDATION", 400); return reply.code(failure.status).send(failure.body); }
-    if ("agent_id" in parsed && parsed.agent_id) { const failure = error(request.id, "AGENT_DISCOVERY_UNAVAILABLE", "Agent ID discovery is not available until an authoritative listing resolver is configured.", "DEPENDENCY", 503, "NOT_CHARGED", true); return reply.code(failure.status).send(failure.body); }
-    let resolved: { manifest: import("../contracts/release-gate.js").ReleaseManifestV1; probeInput?: unknown; discovery?: import("../contracts/release-gate.js").DiscoveryResponseV1 };
+    let resolved: { manifest: import("../contracts/release-gate.js").ReleaseManifestV1; probeInput?: unknown; discovery?: import("../contracts/release-gate.js").DiscoveryResponseV1; listing?: { agentId: string; serviceId: string; name: string | null; fee: string | null; asset: string | null; type: string | null } };
     try {
       resolved = "manifest" in parsed ? { manifest: parsed.manifest, probeInput: parsed.probe_input } : await (async () => {
+        if ("agent_id" in parsed && parsed.agent_id) {
+          const override = parsed.listing_override;
+          const listing = override ? null : await repository.cachedAgentResolution(parsed.agent_id) ?? await agentResolver.resolve(parsed.agent_id);
+          if (listing) await repository.cacheAgentResolution(listing, config.AGENT_RESOLUTION_TTL_SECONDS);
+          const service = override ? (() => { const item = override.services.find((candidate) => candidate.type === "A2MCP") ?? override.services[0]; return item ? { service_id: item.service_id, name: item.name ?? null, endpoint: item.endpoint, fee: item.fee ?? null, asset_contract: item.asset_contract ?? null, type: item.type } : null; })() : selectA2McpService(listing!);
+          if (!service) throw new Error("listing service unavailable");
+          const endpointProbeInput = parsed.probe_input ?? defaultDiscoveryProbeInput(service.endpoint);
+          const discovered = await discoverReleaseSurface({ endpoint: service.endpoint, expected: parsed.expected, probeInput: endpointProbeInput, client: egress });
+          if (!discovered.proposed_manifest.manifest) throw new Error("discovery incomplete");
+          return { manifest: discovered.proposed_manifest.manifest, probeInput: endpointProbeInput, discovery: discovered, listing: { agentId: parsed.agent_id, serviceId: service.service_id, name: override?.name ?? (typeof listing?.name.value === "string" ? listing.name.value : null), fee: service.fee, asset: service.asset_contract, type: service.type } };
+        }
         const endpointProbeInput = parsed.probe_input ?? defaultDiscoveryProbeInput(parsed.endpoint!);
         const discovered = await discoverReleaseSurface({ endpoint: parsed.endpoint!, expected: parsed.expected, probeInput: endpointProbeInput, client: egress });
         if (!discovered.proposed_manifest.manifest) throw new Error("discovery incomplete");
         return { manifest: discovered.proposed_manifest.manifest, probeInput: endpointProbeInput, discovery: discovered };
       })();
     } catch (cause) {
-      if (cause instanceof Error && cause.message === "discovery incomplete") { const failure = error(request.id, "DISCOVERY_INCOMPLETE", "Discovery could not synthesize a complete manifest for this endpoint.", "VALIDATION", 400); return reply.code(failure.status).send(failure.body); }
+      if (cause instanceof Error && (cause.message === "discovery incomplete" || cause.message === "listing service unavailable")) { const failure = error(request.id, "DISCOVERY_INCOMPLETE", "Discovery could not synthesize a complete manifest for this endpoint.", "VALIDATION", 400); return reply.code(failure.status).send(failure.body); }
+      if (cause instanceof Error && cause.name === "AgentResolutionUnavailable") { const failure = error(request.id, "AGENT_DISCOVERY_UNAVAILABLE", cause.message, "DEPENDENCY", 503, "NOT_CHARGED", true); return reply.code(failure.status).send(failure.body); }
       request.log.error({ event: "verify_release_discovery_failed", err: cause }, "verify release discovery failed"); const failure = error(request.id, "PREFLIGHT_INTERNAL", "PreFlight could not discover the endpoint.", "INTERNAL", 500, "NOT_CHARGED", true); return reply.code(failure.status).send(failure.body);
     }
     const digest = manifestHash(resolved.manifest); const manifestId = await repository.storeManifest(resolved.manifest, digest);
     const { run, duplicate } = await repository.beginRun(manifestId, request.id, idempotencyKey, POLICY_VERSION, config.BUILD_SHA);
     if (duplicate && run.status !== "REQUEST_VALIDATED") {
-      if (run.status === "REPORT_PUBLISHED" && run.report) return complete(run.report, repository.tokenFor(run.id), config);
+      if (run.status === "REPORT_PUBLISHED" && run.report) return judgeResponse(complete(run.report, repository.tokenFor(run.id), config), repository.tokenFor(run.id), config);
       const failure = error(request.id, "RUN_IN_PROGRESS", "This idempotent verification is still reconciling. Retry with the same key.", "PAYMENT", 409, "UNKNOWN", true); return reply.code(failure.status).send(failure.body);
     }
     if (!duplicate && resolved.discovery) {
@@ -238,20 +370,13 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
       await repository.audit(run.id, "SURFACE_RECONSTRUCTED", { payment_mode: resolved.manifest.payment.mode });
       await repository.audit(run.id, "INTENT_RECONCILED", { manifest_hash: digest });
     }
-    const resourceUrl = `https://${config.PUBLIC_DOMAIN}/api/v1/verify-release`; const requirements = await gateway.requirements(resourceUrl);
-    const signature = request.headers["payment-signature"];
-    if (typeof signature !== "string") { reply.header("PAYMENT-REQUIRED", await gateway.challenge(requirements, resourceUrl)); return reply.code(402).send(error(request.id, "PAYMENT_REQUIRED", "Payment authorization is required.", "PAYMENT", 402).body); }
     let paymentId: string | null = null; let settlementConfirmed = false;
     try {
-      const payload = gateway.decode(signature); const matched = gateway.match(requirements, payload);
-      if (!matched) { const failure = error(request.id, "PAYMENT_REQUIREMENTS_MISMATCH", "Payment does not match this service.", "PAYMENT", 402); return reply.code(failure.status).send(failure.body); }
-      paymentId = await repository.createPayment(run.id, { payloadHash: canonicalHash(payload as unknown as JsonValue), identifier: idempotencyKey, network: matched.network, asset: matched.asset, amount: matched.amount, payTo: matched.payTo, payer: payer(payload) });
+      paymentId = await repository.createPayment(run.id, { payloadHash: canonicalHash(paymentPayload as unknown as JsonValue), identifier: idempotencyKey, network: matched.network, asset: matched.asset, amount: matched.amount, payTo: matched.payTo, payer: payer(paymentPayload) });
       if (!paymentId) { await repository.audit(run.id, "PAYMENT_REPLAY_REJECTED", {}); const failure = error(request.id, "PAYMENT_REPLAY", "This payment payload has already been used.", "PAYMENT", 409, "NOT_CHARGED"); return reply.code(failure.status).send(failure.body); }
-      const verified = await gateway.verify(payload, matched);
-      if (!verified.valid) { await repository.updatePayment(paymentId, "REJECTED", "NOT_STARTED", undefined, undefined, false, "PAYMENT_INVALID"); await repository.transition(run.id, ["REQUEST_VALIDATED"], "PAYMENT_FAILED"); const failure = error(request.id, "PAYMENT_INVALID", "Payment verification failed.", "PAYMENT", 402); return reply.code(failure.status).send(failure.body); }
-      const payerKey = verified.payer ?? payer(payload) ?? "unknown";
+      const payerKey = verified.payer ?? payer(paymentPayload) ?? "unknown";
       const [payerLimit, targetLimit] = await Promise.all([
-        repository.reserveRateLimit("paid_payer_minute", payerKey, 30, "minute"), repository.reserveRateLimit("paid_target_hour", resolved.manifest.target.endpoint, 10, "hour")
+        repository.reserveRateLimit("paid_payer_minute", payerKey, config.PAID_VERIFICATION_PAYER_PER_MINUTE, "minute"), repository.reserveRateLimit("paid_target_hour", resolved.manifest.target.endpoint, config.PAID_VERIFICATION_TARGET_PER_HOUR, "hour")
       ]);
       const concurrent = payerLimit.allowed && targetLimit.allowed && await repository.claimPaidConcurrency(run.id, resolved.manifest.target.endpoint);
       if (!concurrent) { await repository.updatePayment(paymentId, "VERIFIED", "NOT_STARTED", undefined, undefined, false, "PAID_RATE_LIMITED"); const failure = error(request.id, "PAID_RATE_LIMITED", "Paid verification capacity is currently limited; no settlement occurred.", "RATE_LIMIT", 429); return reply.code(failure.status).send(failure.body); }
@@ -271,7 +396,7 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
       } else {
         artifacts.push(evidenceArtifact("BUYER_PROOF", resolved.manifest.target.endpoint, { authorized: false, status: "NOT_AUTHORIZED" }));
       }
-      const criteria = evaluateCriteria(resolved.manifest, artifacts, { buyerAuthorized: buyerRequested }); const decision = aggregateDecision(criteria); const capturedAt = new Date().toISOString();
+      const criteria = [...evaluateCriteria(resolved.manifest, artifacts, { buyerAuthorized: buyerRequested }), ...(resolved.listing ? evaluateListingCriteria({ endpoint: resolved.manifest.target.endpoint, fee: resolved.listing.fee, asset: resolved.listing.asset, type: resolved.listing.type }, artifacts) : [])]; const decision = aggregateDecision(criteria); const capturedAt = new Date().toISOString();
       await repository.audit(run.id, "DECISION_SEALED", { decision });
       const snapshot = { captured_at: capturedAt, requested_url: resolved.manifest.target.endpoint, artifacts, discovery: "discovery" in resolved ? resolved.discovery : undefined } as unknown as JsonValue; const snapshotHash = runtimeSnapshotHash(snapshot);
       const expiresAt = new Date(Date.now() + config.REPORT_RETENTION_DAYS * 86_400_000).toISOString();
@@ -279,8 +404,10 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
         manifest: { schema_version: resolved.manifest.schema_version, manifest_hash: digest, canonical_manifest: resolved.manifest }, runtime_snapshot: { snapshot_hash: snapshotHash, captured_at: capturedAt, requested_url: resolved.manifest.target.endpoint, final_url: (artifacts.find((artifact) => artifact.kind === "TRANSPORT")?.normalized as { final_url?: string } | undefined)?.final_url, build_identifier: config.BUILD_SHA }, policy_version: POLICY_VERSION,
         summary: { matched: criteria.filter((item) => item.state === "MATCH").length, contradictions: criteria.filter((item) => item.state === "CONTRADICTION").length, unknown: criteria.filter((item) => item.state === "UNKNOWN").length, not_applicable: criteria.filter((item) => item.state === "NOT_APPLICABLE").length }, criterion_groups: group(criteria), limitations: buyerRequested ? ["Observable public runtime only", `PreFlight service fee: ${config.PRICE_VERIFY_RELEASE} USDT; target buyer-proof spend is disclosed separately in buyer_proof criteria.`, "Decision applies only to this runtime snapshot"] : ["Observable public runtime only", "Target buyer-proof payment was not authorized; settlement/delivery criteria are UNKNOWN.", "Decision applies only to this runtime snapshot"], generated_at: capturedAt, report_expires_at: expiresAt };
       await repository.prepareReport(run.id, report, snapshot, snapshotHash); await repository.transition(run.id, ["REPORT_PREPARED"], "SETTLEMENT_PENDING"); await repository.updatePayment(paymentId, "VERIFIED", "PENDING");
-      let settled = await gateway.settle(payload, matched);
-      for (let attempt = 0; !settled.success && settled.transaction && attempt < 60; attempt += 1) {
+      let settled = await gateway.settle(paymentPayload, matched);
+      // Some facilitators acknowledge a submitted settlement as success:true while
+      // its status remains pending. It is not publishable until status=success.
+      for (let attempt = 0; settled.status !== "success" && settled.transaction && attempt < 60; attempt += 1) {
         await delay(1_500);
         const status = await gateway.settlementStatus(settled.transaction);
         if (status.status === "success") settled = { ...settled, success: true, status: "success", transaction: status.transaction ?? settled.transaction };
@@ -296,7 +423,9 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
           await repository.audit(run.id, "GALLERY_ENTRY_CREATED", { decision: finalReport.decision });
         } else await repository.audit(run.id, "GALLERY_RATE_LIMITED", {});
       }
-      const token = await repository.publish(run.id); reply.header("PAYMENT-RESPONSE", gateway.responseHeader(settled)); return complete(finalReport, token, config);
+      const token = await repository.publish(run.id); reply.header("PAYMENT-RESPONSE", gateway.responseHeader(settled));
+      if (resolved.listing && finalReport.decision === "RELEASE" && finalReport.receipt) await repository.upsertPassport(resolved.listing.agentId, finalReport.receipt.receipt_id, finalReport.policy_version, { endpoint: resolved.manifest.target.endpoint, service_id: resolved.listing.serviceId }, new Date(Date.now() + config.PASSPORT_TTL_DAYS * 86_400_000));
+      return judgeResponse(complete(finalReport, token, config), token, config, Date.now(), resolved.listing ? { agentId: resolved.listing.agentId, serviceId: resolved.listing.serviceId, name: resolved.listing.name } : undefined);
     } catch (cause) {
       request.log.error({ event: "verify_release_internal", run_id: run.id, err: cause }, "verify release failed");
       if (paymentId) await repository.updatePayment(paymentId, "VERIFIED", settlementConfirmed ? "SETTLED" : "NOT_SETTLED", undefined, undefined, settlementConfirmed, "PREFLIGHT_INTERNAL").catch(() => undefined);
@@ -340,14 +469,23 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
     const drift = await repository.hasNewerDrift(reportId);
     if (drift) { await repository.recordBadgeEvent(reportId, run.report.receipt?.receipt_id ?? null, "expired", { reason: "newer_drift" }); return reply.code(409).send(error(request.id, "BADGE_EXPIRED", "A newer report changed this release snapshot.", "VALIDATION", 409).body); }
     await repository.recordBadgeEvent(reportId, run.report.receipt?.receipt_id ?? null, "issued", {});
-    return { schema_version: "preflight.badge.v1", badge_url: `https://${config.PUBLIC_DOMAIN}/api/v1/badge/${reportId}.svg?token=${encodeURIComponent(token)}` };
+    return { schema_version: "preflight.badge.v1", badge_url: null, message: "Private report badges are not embeddable with capability tokens. Use a public passport badge when available." };
   });
   app.get("/api/v1/badge/:reportId.svg", async (request, reply) => {
     if (!repository) return reply.code(503).type("text/plain").send("PreFlight unavailable");
     if (!config.BADGES_ENABLED) return reply.code(404).type("text/plain").send("Badges disabled");
+    const badgeLimit = await repository.reserveRateLimit("badge_ip_minute", request.ip, 300, "minute");
+    if (!badgeLimit.allowed) return reply.code(429).type("text/plain").send("Badge rate limited");
     const reportId = (request.params as { reportId: string }).reportId; const token = bearer(request);
     const run = await repository.retrieve(reportId, token);
-    if (!run || !run.report || run.report.decision !== "RELEASE") return reply.code(404).type("text/plain").send("Badge unavailable");
+    if (!run || !run.report || run.report.decision !== "RELEASE") {
+      // v5 passport badges deliberately have no capability token; report badges
+      // above remain private and continue to require one.
+      const passport = await repository.getPassport(reportId);
+      if (!passport) return reply.code(404).type("text/plain").send("Badge unavailable");
+      const stale = Boolean(passport.revoked_at || passport.expires_at <= new Date());
+      return reply.header("Cache-Control", "public, max-age=300").type("image/svg+xml").send(passportBadgeSvg(passport.agent_id, stale ? "STALE" : "RELEASE", passport.receipt_id, passport.issued_at.toISOString(), passport.policy_version));
+    }
     const drift = await repository.hasNewerDrift(reportId);
     const receipt = run.report.receipt ?? (await repository.getReceiptByReport(reportId) ? receiptEnvelopeFromStored((await repository.getReceiptByReport(reportId))!, config) : undefined);
     if (drift || !receipt) return reply.code(409).type("text/plain").send("Badge expired");
@@ -385,9 +523,13 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
     return reply.header("Cache-Control", "private, no-store").send(machineReportV1Schema.parse({
       schema_version: "preflight.machine-report.v1.1", report_id: reportId, decision: run.report.decision, blockers, criteria, evidence_refs: evidenceRefs, remediations,
       hashes: { manifest_hash: run.report.manifest.manifest_hash, snapshot_hash: run.report.runtime_snapshot.snapshot_hash }, policy_version: run.report.policy_version,
-      receipt_id: run.report.receipt?.receipt_id ?? null, receipt_signature: run.report.receipt?.signature ?? null, badge_url: run.report.decision === "RELEASE" && run.report.receipt ? `https://${config.PUBLIC_DOMAIN}/api/v1/badge/${reportId}.svg?token=${encodeURIComponent(token)}` : null, chain_anchor_tx: run.report.chain_anchor_tx ?? null,
+      receipt_id: run.report.receipt?.receipt_id ?? null, receipt_signature: run.report.receipt?.signature ?? null, badge_url: run.report.badge_url ?? null, chain_anchor_tx: run.report.chain_anchor_tx ?? null,
       exit_code: machineExit(run.report.decision)
     }));
   });
-  return { ...state, stop() { if (reconciliationTimer) clearInterval(reconciliationTimer); } };
+  return {
+    get reconciliation() { return state.reconciliation; },
+    get cohort() { return state.cohort; },
+    stop() { if (reconciliationTimer) clearInterval(reconciliationTimer); if (cohortTimer) clearInterval(cohortTimer); }
+  };
 }

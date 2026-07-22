@@ -83,7 +83,7 @@ export async function buildServer(source: NodeJS.ProcessEnv = process.env) {
   const health = async () => {
     let db = "disabled";
     if (database) { try { await database.health(); db = "ok"; } catch { db = "down"; } }
-    return { ok: db !== "down", build_sha: config.BUILD_SHA, db, settlement_listener: payments.listenerStatus, release_reconciliation: releaseGate.reconciliation };
+    return { ok: db !== "down", build_sha: config.BUILD_SHA, db, settlement_listener: payments.listenerStatus, release_reconciliation: releaseGate.reconciliation, cohort_scheduler: releaseGate.cohort };
   };
   app.get("/health", health);
   app.get("/livez", async () => ({ ok: true, build_sha: config.BUILD_SHA }));

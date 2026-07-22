@@ -13,7 +13,7 @@ test("home → check → discover", async ({ page }) => {
   await page.route("**/api/v1/discover", (r) =>
     r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(discovery) }),
   );
-  await page.getByLabel("Endpoint or Agent ID").fill("https://api.usepreflight.xyz/api/v1/verify-release");
+  await page.getByLabel(/Endpoint URL or OKX Agent ID/).fill("https://api.usepreflight.xyz/api/v1/verify-release");
   await page.getByRole("button", { name: "Discover" }).click();
   await expect(page.getByRole("heading", { name: "Proposed manifest" })).toBeVisible();
   await expect(page.getByText("Payment disclosure")).toBeVisible();
@@ -47,7 +47,7 @@ test.describe("mobile 375", () => {
       r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(discovery) }),
     );
     await page.goto("/check");
-    await page.getByLabel("Endpoint or Agent ID").fill("https://api.usepreflight.xyz/api/v1/verify-release");
+    await page.getByLabel(/Endpoint URL or OKX Agent ID/).fill("https://api.usepreflight.xyz/api/v1/verify-release");
     await page.getByRole("button", { name: "Discover" }).click();
     await expect(page.getByRole("heading", { name: "Proposed manifest" })).toBeVisible();
   });

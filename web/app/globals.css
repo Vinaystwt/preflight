@@ -254,6 +254,16 @@
   background-size: 44px 44px;
 }
 
+/* mobile nav drawer */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
 /* instrument surface: 1px border + subtle top-edge highlight, no heavy shadow */
 .panel {
   background: var(--surface-1);

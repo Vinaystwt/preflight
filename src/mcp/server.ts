@@ -42,6 +42,17 @@ function createDiscoveryServer(config: Config): McpServer {
 export function mountMcp(app: FastifyInstance, config: Config): void {
   app.all("/mcp", async (request, reply) => {
     const body = request.body as { jsonrpc?: string; id?: unknown; method?: string; params?: { name?: string; arguments?: unknown } } | undefined;
+    if (request.method === "POST" && body?.method === "initialize") {
+      return reply.send({ jsonrpc: "2.0", id: body.id, result: { protocolVersion: "2025-03-26", capabilities: { tools: {} }, serverInfo: { name: "PreFlight Release Gate", version: config.BUILD_SHA } } });
+    }
+    if (request.method === "POST" && body?.method === "notifications/initialized") return reply.code(202).send();
+    if (request.method === "POST" && body?.method === "tools/list") {
+      return reply.send({ jsonrpc: "2.0", id: body.id, result: { tools: toolDefinitions(config) } });
+    }
+    if (request.method === "POST" && body?.method === "tools/call" && body.params?.name === "preflight_service_info") {
+      const value = serviceInfo(config);
+      return reply.send(jsonRpcResult(body.id, value));
+    }
     if (config.MCP_TOOL_ENABLED && request.method === "POST" && body?.method === "tools/call" && body.params?.name === "verify_release") {
       const signature = request.headers["payment-signature"];
       if (typeof signature !== "string") return reply.send(jsonRpcResult(body.id, paidPointer(config)));
@@ -83,6 +94,25 @@ function paidPointer(config: Config) {
     endpoint: `POST https://${config.PUBLIC_DOMAIN}/api/v1/verify-release`,
     how: "x402 v2: expect 402 + PAYMENT-REQUIRED, replay with PAYMENT-SIGNATURE"
   };
+}
+function serviceInfo(config: Config) {
+  return { ...SERVICE, price_usdt: config.PRICE_VERIFY_RELEASE, paid_endpoint: `https://${config.PUBLIC_DOMAIN}${SERVICE.paid_endpoint}` };
+}
+function toolDefinitions(config: Config) {
+  const tools = [{
+    name: "preflight_service_info",
+    description: "Returns discovery information for the single PreFlight Release Gate service.",
+    inputSchema: { type: "object", additionalProperties: false }
+  }];
+  return config.MCP_TOOL_ENABLED ? [...tools, {
+    name: "verify_release",
+    title: "Verify Release",
+    description: "Paid Release Gate verification. Unpaid MCP calls return a pointer to the canonical x402 HTTP service.",
+    inputSchema: zodJsonSchemaPlaceholder()
+  }] : tools;
+}
+function zodJsonSchemaPlaceholder() {
+  return { type: "object" };
 }
 
 function safeJson(value: string): unknown {

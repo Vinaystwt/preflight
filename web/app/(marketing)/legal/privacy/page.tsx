@@ -30,8 +30,7 @@ export default function PrivacyPage() {
         </Block>
       </div>
       <p className="t-body mt-10 text-[14px] text-tertiary">
-        Questions go to <Link href="/how-it-works" className="text-accent underline underline-offset-2 decoration-[color-mix(in_srgb,var(--accent)_45%,transparent)] hover:decoration-accent">how it works</Link>, or reach the maintainer at{" "}
-        <a href="https://x.com/vinaystwt" target="_blank" rel="noopener noreferrer" className="text-accent underline underline-offset-2 decoration-[color-mix(in_srgb,var(--accent)_45%,transparent)] hover:decoration-accent">@vinaystwt</a>.
+        Questions go to <Link href="/how-it-works" className="text-accent underline underline-offset-2 decoration-[color-mix(in_srgb,var(--accent)_45%,transparent)] hover:decoration-accent">how it works</Link>.
       </p>
     </div>
   );

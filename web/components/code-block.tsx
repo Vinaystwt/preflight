@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 export function CodeBlock({ code, label, className }: { code: string; label?: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div className={cn("overflow-hidden rounded-md border border-border", className)} style={{ background: "var(--surface-1)" }}>
+    <div className={cn("min-w-0 rounded-md border border-border", className)} style={{ background: "var(--surface-1)", overflow: "hidden" }}>
       <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5" style={{ background: "var(--surface-2)" }}>
         <span className="t-label text-tertiary">{label ?? "code"}</span>
         <button
@@ -25,7 +25,7 @@ export function CodeBlock({ code, label, className }: { code: string; label?: st
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <pre tabIndex={0} className="overflow-x-auto p-3 t-evidence leading-[1.6] text-secondary focus-visible:outline-2 focus-visible:outline-accent-focus" aria-label={label ?? "code"}>
+      <pre tabIndex={0} className="p-3 t-evidence leading-[1.6] text-secondary focus-visible:outline-2 focus-visible:outline-accent-focus" style={{ overflowX: "auto" }} aria-label={label ?? "code"}>
         <code>{code}</code>
       </pre>
     </div>

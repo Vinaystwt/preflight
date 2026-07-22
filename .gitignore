@@ -13,6 +13,11 @@ test-results/
 # local/OS files
 .DS_Store
 *.tsbuildinfo
+.idea/
+.vscode/
+.cursor/
+.codex/
+.claude/
 
 # secrets and local env
 .env
@@ -25,6 +30,23 @@ test-results/
 *.pfx
 *.tgz
 npm-debug.log*
+
+# private/local operational material
+artifacts/
+AUDIT-REPORT.md
+DECISION_LOG.md
+EVIDENCE_LEDGER.md
+INFRA_SURVIVAL_PASS_REPORT.md
+RISK_REGISTER.md
+STATE.md
+*.bundle
+*.dump
+*.backup
+*.bak
+*.sql.gz
+*.dump.gz
+*-private-artifacts/
+private-artifacts/
 
 # legacy local frontend worktrees preserved in private artifacts, not public source
 frontend/

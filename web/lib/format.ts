@@ -39,6 +39,21 @@ export function formatTimestamp(iso: string): string {
   return `${d.toISOString().slice(0, 19).replace("T", " ")} UTC`;
 }
 
+/** Relative time like "3m ago" / "2h ago" / "5d ago". Falls back to a date. */
+export function relativeTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const secs = Math.round((Date.now() - d.getTime()) / 1000);
+  if (secs < 45) return "just now";
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  return `${d.toISOString().slice(0, 10)}`;
+}
+
 export function hostOf(url: string): string {
   try {
     return new URL(url).host;

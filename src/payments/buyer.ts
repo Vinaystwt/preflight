@@ -60,6 +60,11 @@ function safeJson(text: string): JsonValue {
 function artifact(target: string, normalized: Record<string, JsonValue>) {
   return evidenceArtifact("BUYER_PROOF", target, normalized as JsonValue);
 }
+function replaySafe(status: number | null, paymentRequiredHeader: boolean, paymentResponseHeader: boolean): boolean {
+  if (status === 409) return !paymentResponseHeader;
+  if (status === 402) return paymentRequiredHeader && !paymentResponseHeader;
+  return false;
+}
 
 export function createBuyerProofClient(config: Config, repository: ReleaseRepository, fetchImplementation: typeof fetch = fetch): BuyerProofClient | null {
   if (!config.BUYER_WALLET_KEY) return null;
@@ -130,14 +135,20 @@ export function createBuyerProofClient(config: Config, repository: ReleaseReposi
         await input.audit("BUYER_PAID", { status: paid.status, settlement_reference: typeof settlement === "string" ? settlement : null });
         await input.audit("BUYER_SETTLED", { status: receiptStatus ?? "unknown", settlement_reference: typeof settlement === "string" ? settlement : null });
         let duplicateStatus: number | null = null;
+        let duplicatePaymentRequired = false;
+        let duplicatePaymentResponse = false;
+        let duplicateResponse: JsonValue | null = null;
         if (capturedSignature) {
           const duplicate = await fetchImplementation(input.target, { method: "POST", headers: { "content-type": "application/json", accept: "application/json", "idempotency-key": `${idempotency}-duplicate`, "payment-signature": capturedSignature }, body: JSON.stringify(input.body) });
           duplicateStatus = duplicate.status;
-          await duplicate.arrayBuffer().catch(() => undefined);
+          duplicatePaymentRequired = Boolean(paymentRequired(duplicate));
+          duplicatePaymentResponse = Boolean(duplicate.headers.get("payment-response") ?? duplicate.headers.get("PAYMENT-RESPONSE"));
+          duplicateResponse = safeJson(await duplicate.text().catch(() => ""));
         }
-        await input.audit("BUYER_REPLAYED", { duplicate_status: duplicateStatus });
+        const duplicateReplaySafe = replaySafe(duplicateStatus, duplicatePaymentRequired, duplicatePaymentResponse);
+        await input.audit("BUYER_REPLAYED", { duplicate_status: duplicateStatus, duplicate_payment_required: duplicatePaymentRequired, duplicate_payment_response: duplicatePaymentResponse, duplicate_replay_safe: duplicateReplaySafe });
         await input.audit("BUYER_DELIVERED", { status: paid.status });
-        return artifact(input.target, { authorized: true, status: paid.ok && duplicateStatus === 409 ? "DELIVERED" : paid.ok ? "DUPLICATE_REPLAY_NOT_REJECTED" : "DEEP_CALL_FAILED", ...(authorization as unknown as Record<string, JsonValue>), delivery_status: paid.status, settlement_reference: typeof settlement === "string" ? settlement : null, receipt_status: receiptStatus, duplicate_replay_status: duplicateStatus, response: safeJson(text) });
+        return artifact(input.target, { authorized: true, status: paid.ok && duplicateReplaySafe ? "DELIVERED" : paid.ok ? "DUPLICATE_REPLAY_NOT_REJECTED" : "DEEP_CALL_FAILED", ...(authorization as unknown as Record<string, JsonValue>), delivery_status: paid.status, settlement_reference: typeof settlement === "string" ? settlement : null, receipt_status: receiptStatus, duplicate_replay_status: duplicateStatus, duplicate_replay_payment_required: duplicatePaymentRequired, duplicate_replay_payment_response: duplicatePaymentResponse, duplicate_replay_safe: duplicateReplaySafe, duplicate_replay_response: duplicateResponse, response: safeJson(text) });
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : "BUYER_PROOF_FAILED";
         await repository.updateBuyerProofSpend(reservation.id, message === "BUYER_TERMS_CHANGED" ? "aborted" : "failed");

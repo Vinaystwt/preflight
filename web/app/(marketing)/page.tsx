@@ -4,6 +4,8 @@ import { HeroLoop } from "@/components/hero/hero-loop";
 import { DeclaredObserved } from "@/components/matrix/declared-observed";
 import { VerdictStamp } from "@/components/verdict-stamp";
 import { VerdictTravels } from "@/components/home/verdict-travels";
+import { LiveEvidence } from "@/components/home/live-evidence";
+import { SelfCheckStrip } from "@/components/home/self-check-strip";
 import { Reveal } from "@/components/reveal";
 
 const EXAMPLE_ROWS = [
@@ -49,7 +51,7 @@ export default async function HomePage({
           style={{ background: "radial-gradient(circle, rgba(155,140,255,0.16), transparent 62%)" }}
           aria-hidden
         />
-        <div className="relative mx-auto w-full max-w-[1520px] px-5 py-16 sm:px-6 lg:py-24">
+        <div className="relative mx-auto w-full max-w-[1520px] px-5 py-16 sm:px-6 lg:px-10 lg:py-24">
           <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,42%)_minmax(0,58%)]">
             <div>
               <span className="t-label inline-flex items-center gap-2 rounded-full border border-accent-border px-3 py-1 text-accent" style={{ background: "var(--accent-muted-bg)" }}>
@@ -75,7 +77,7 @@ export default async function HomePage({
                 Free discovery. 0.10 USDT per full check, paid over x402.
               </p>
               <p className="t-ui mt-2 text-tertiary">
-                Every check ends with a signed receipt anyone can verify.
+                Every completed full verification issues a signed receipt anyone can verify.
               </p>
             </div>
 
@@ -83,6 +85,12 @@ export default async function HomePage({
           </div>
         </div>
       </section>
+
+      {/* ===== LIVE EVIDENCE ===== */}
+      <div className="mt-10 flex flex-col gap-4 lg:mt-14">
+        <LiveEvidence />
+        <SelfCheckStrip />
+      </div>
 
       {/* ===== WHAT IT PROVES ===== */}
       <Section

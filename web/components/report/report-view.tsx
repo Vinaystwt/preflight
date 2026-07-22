@@ -17,7 +17,10 @@ import { ArtifactsStrip } from "./artifacts-strip";
 import { ReceiptInspector } from "./receipt-inspector";
 import { BadgeEmbed } from "./badge-embed";
 import { GalleryOptIn } from "./gallery-optin";
+import { JourneyTimeline } from "./journey-timeline";
+import { ScopeBlock } from "@/components/scope-block";
 import { ReportLoading, ReportNeedsLink, ReportUnavailable, ReportExpired, ReportFailed } from "./report-states";
+import type { ReleaseReportV2 } from "@/lib/contracts-v5";
 
 const TONE: Record<Decision, { text: string; bg: string; border: string; Icon: typeof ShieldCheck }> = {
   RELEASE: { text: "text-release", bg: "var(--release-bg)", border: "var(--release-border)", Icon: ShieldCheck },
@@ -67,6 +70,12 @@ export function ReportView({ id }: { id: string }) {
   if (status === "failed") return <ReportFailed requestId={requestId} />;
   if (!report || token == null) return <ReportLoading label={loadingLabel} />;
 
+  // The reports endpoint may return the additive v2 envelope. Render its
+  // human-readable fields when present; otherwise fall back to v1 rendering.
+  const v2 = report as unknown as Partial<ReleaseReportV2>;
+  const v2Journey = Array.isArray(v2.journey) && v2.journey.length > 0 ? v2.journey : null;
+  const v2Scope = v2.scope && Array.isArray(v2.scope.proves) ? v2.scope : null;
+
   const t = TONE[report.decision];
   const Icon = t.Icon;
   const rail = deriveRail(report);
@@ -91,7 +100,14 @@ export function ReportView({ id }: { id: string }) {
             <div className="min-w-0">
               <p className="t-label text-tertiary">Decision</p>
               <h1 className={cn("t-h1 mt-0.5", t.text)}>{report.decision}</h1>
-              <p className="t-body mt-2 max-w-2xl text-primary">{scope}</p>
+              {v2.headline ? (
+                <>
+                  <p className="font-display mt-2 max-w-2xl text-[18px] font-semibold leading-[1.35] text-primary">{v2.headline}</p>
+                  {v2.what_this_means && <p className="t-body mt-2 max-w-2xl text-secondary">{v2.what_this_means}</p>}
+                </>
+              ) : (
+                <p className="t-body mt-2 max-w-2xl text-primary">{scope}</p>
+              )}
               <p className="t-evidence mt-2 text-tertiary">PreFlight acted as a buyer of <span className="text-secondary">{host}</span>.</p>
             </div>
           </div>
@@ -110,9 +126,17 @@ export function ReportView({ id }: { id: string }) {
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_200px]">
           <div className="min-w-0 order-2 lg:order-1 flex flex-col gap-10">
+            {v2Journey && <JourneyTimeline steps={v2Journey} />}
             <ReportBody report={report} />
+            {v2Scope && (
+              <section aria-label="Receipt scope">
+                <h2 className="t-h3 text-[18px] text-primary">What a receipt for this report proves</h2>
+                <p className="t-evidence mt-1 text-tertiary">Anyone can verify that a receipt was issued by PreFlight, has not been altered, and applies to the identified runtime snapshot and policy version.</p>
+                <div className="mt-4"><ScopeBlock scope={v2Scope} /></div>
+              </section>
+            )}
             {report.decision === "BLOCK" && <GalleryOptIn report={report} />}
-            {report.receipt && <ReceiptInspector receipt={report.receipt} reportHashes={{ manifest_hash: report.manifest?.manifest_hash, snapshot_hash: report.runtime_snapshot?.snapshot_hash }} />}
+            {report.receipt && <ReceiptInspector receipt={report.receipt} reportHashes={{ manifest_hash: report.manifest?.manifest_hash, snapshot_hash: report.runtime_snapshot?.snapshot_hash }} verifyUrl={v2.receipt?.verify_url ?? null} />}
             {report.decision === "RELEASE" && <BadgeEmbed report={report} token={token} />}
             <SnapshotMeta report={report} />
           </div>

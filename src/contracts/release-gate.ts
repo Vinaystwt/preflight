@@ -91,6 +91,12 @@ const discoveryVerifyReleaseRequestV1Schema = z.object({
   endpoint: httpsUrl.optional(),
   agent_id: z.string().min(1).max(200).optional(),
   expected: manifestExpectationV1Schema.optional(),
+  // Used only when the authenticated OKX resolver is unavailable. It is
+  // explicitly caller-supplied and is never presented as listing observation.
+  listing_override: z.object({
+    name: z.string().min(1).max(200).optional(),
+    services: z.array(z.object({ service_id: z.string().min(1), name: z.string().min(1).optional(), type: z.string().min(1), fee: z.string().regex(/^\d+(?:\.\d{1,6})?$/).optional(), endpoint: httpsUrl, asset_contract: hexAddress.optional() }).strict()).min(1)
+  }).strict().optional(),
   probe_input: jsonValueSchema.optional(),
   authorize_buyer_proof: z.literal(true).optional(),
   owner_attestation: z.literal(true).optional(),
@@ -176,7 +182,16 @@ export const receiptPayloadV1Schema = z.object({
   target_fingerprint: z.string().regex(/^sha256:[a-f0-9]{64}$/),
   issued_at: z.string().datetime(),
   key_id: z.string().min(1),
-  chain_anchor: z.object({ tx: z.string().regex(/^0x[a-fA-F0-9]{64}$/), contract: hexAddress }).strict().nullable()
+  chain_anchor: z.object({ tx: z.string().regex(/^0x[a-fA-F0-9]{64}$/), contract: hexAddress }).strict().nullable(),
+  // Optional only so historically issued v1 receipts remain independently verifiable.
+  // All newly issued receipts carry this explicit bounded-claim declaration.
+  scope: z.object({
+    proves: z.array(z.enum(["issuer_authenticity", "payload_integrity", "snapshot_binding", "policy_binding"])),
+    does_not_prove: z.array(z.enum(["semantic_correctness_of_delivery", "future_behaviour", "security_of_target", "marketplace_endorsement"])),
+    policy_version: z.string().min(1),
+    snapshot_hash: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+    valid_until: z.string().datetime()
+  }).strict().optional()
 }).strict();
 export type ReceiptPayloadV1Contract = z.infer<typeof receiptPayloadV1Schema>;
 
@@ -207,6 +222,52 @@ export const verifyReleaseResponseV1Schema = z.object({
   report_access: z.object({ report_url: httpsUrl, access_token: z.string().min(43) }).strict()
 }).strict();
 export type VerifyReleaseResponseV1 = z.infer<typeof verifyReleaseResponseV1Schema>;
+
+export const receiptScopeV1Schema = z.object({
+  proves: z.array(z.enum(["issuer_authenticity", "payload_integrity", "snapshot_binding", "policy_binding"])),
+  does_not_prove: z.array(z.enum(["semantic_correctness_of_delivery", "future_behaviour", "security_of_target", "marketplace_endorsement"])),
+  policy_version: z.string().min(1),
+  snapshot_hash: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+  valid_until: z.string().datetime()
+}).strict();
+export type ReceiptScopeV1 = z.infer<typeof receiptScopeV1Schema>;
+
+export const journeyStepV1Schema = z.object({
+  step: z.enum(["resolve_listing", "reach_endpoint", "tls_verify", "mcp_handshake", "payment_challenge", "reconcile", "authorize_payment", "settle_payment", "replay_request", "inspect_delivery", "seal_receipt"]),
+  status: z.enum(["ok", "contradiction", "unknown", "not_applicable", "skipped", "failed"]),
+  observed: z.string().min(1),
+  t_ms: z.number().int().nonnegative()
+}).strict();
+export type JourneyStepV1 = z.infer<typeof journeyStepV1Schema>;
+
+export const verifyReleaseResponseV2Schema = z.object({
+  schema_version: z.literal("preflight.release-report.v2"),
+  decision: releaseDecisionSchema,
+  headline: z.string().min(1),
+  what_this_means: z.string().min(1),
+  target: z.object({ agent_id: z.string().nullable(), service_id: z.string().nullable(), endpoint: httpsUrl, listing_name: z.string().nullable() }).strict(),
+  summary: z.object({ matched: z.number().int().nonnegative(), blocked: z.number().int().nonnegative(), unknown: z.number().int().nonnegative(), not_applicable: z.number().int().nonnegative(), duration_ms: z.number().int().nonnegative() }).strict(),
+  primary_blocker: z.object({ code: z.string(), declared: z.string().nullable(), observed: z.string().nullable(), consequence: z.string(), exact_fix: z.string() }).strict().nullable(),
+  buyer_proof: z.object({ attempted: z.boolean(), authorized: z.boolean(), settlement_ref: z.string().nullable(), oklink_url: httpsUrl.nullable(), delivery_observed: z.boolean().nullable() }).strict(),
+  receipt: z.object({ receipt_id: z.string().nullable(), signature: z.string().nullable(), verify_url: httpsUrl.nullable(), pubkeys_url: httpsUrl }).strict(),
+  report_url: httpsUrl,
+  scope: receiptScopeV1Schema,
+  journey: z.array(journeyStepV1Schema),
+  checked_at: z.string().datetime(),
+  policy_version: z.string().min(1),
+  docs_url: httpsUrl,
+  detail: verifyReleaseResponseV1Schema
+}).strict();
+export type VerifyReleaseResponseV2 = z.infer<typeof verifyReleaseResponseV2Schema>;
+
+export const listingProvenanceValueSchema = z.object({ value: jsonValueSchema.nullable(), source: z.string().min(1), confidence: z.enum(["observed", "inferred", "unknown"]) }).strict();
+export const agentResolutionV1Schema = z.object({
+  agent_id: z.string().min(1), name: listingProvenanceValueSchema, description: listingProvenanceValueSchema,
+  category_code: listingProvenanceValueSchema, status: listingProvenanceValueSchema,
+  services: z.array(z.object({ service_id: listingProvenanceValueSchema, name: listingProvenanceValueSchema, type: listingProvenanceValueSchema, fee: listingProvenanceValueSchema, endpoint: listingProvenanceValueSchema, asset_contract: listingProvenanceValueSchema }).strict()),
+  resolved_at: z.string().datetime(), resolution_source: z.string().min(1)
+}).strict();
+export type AgentResolutionV1 = z.infer<typeof agentResolutionV1Schema>;
 
 export const runStageEventV1Schema = z.object({
   stage: z.enum(["reachable", "mcp_discovered", "challenge_parsed", "surface_reconstructed", "intent_reconciled", "decision_sealed", "authorized", "paid", "settled", "replayed", "delivered"]),
@@ -273,4 +334,4 @@ export type ApiErrorV1 = z.infer<typeof apiErrorV1Schema>;
 export function manifestHash(manifest: ReleaseManifestV1): string { return canonicalHash(releaseManifestV1Schema.parse(manifest) as JsonValue); }
 export function runtimeSnapshotHash(snapshot: JsonValue): string { return canonicalHash(snapshot); }
 
-export const CONTRACT_VERSIONS = Object.freeze({ manifest: "preflight.release-manifest.v1", request: "preflight.verify-release-request.v1", discovery: "preflight.discovery.v1", runStatus: "preflight.run-status.v1", machineReport: "preflight.machine-report.v1.1", report: "preflight.release-report.v1", receipt: "preflight.receipt.v1", pubkeys: "preflight.pubkeys.v1", gallery: "preflight.gallery.v1", error: "preflight.error.v1", policy: "preflight.release-policy.v1" });
+export const CONTRACT_VERSIONS = Object.freeze({ manifest: "preflight.release-manifest.v1", request: "preflight.verify-release-request.v1", discovery: "preflight.discovery.v1", runStatus: "preflight.run-status.v1", machineReport: "preflight.machine-report.v1.1", report: "preflight.release-report.v1", reportV2: "preflight.release-report.v2", receipt: "preflight.receipt.v1", pubkeys: "preflight.pubkeys.v1", gallery: "preflight.gallery.v1", error: "preflight.error.v1", policy: "preflight.release-policy.v1" });

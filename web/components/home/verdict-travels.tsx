@@ -39,9 +39,9 @@ export function VerdictTravels() {
         <span className="t-label text-accent">The verdict travels</span>
         <h2 className="t-h2 mt-3 text-primary">A decision you can hand to anyone.</h2>
         <p className="t-lead mt-4 text-secondary">
-          Every check ends with a signed receipt. It carries the snapshot it judged and PreFlight&apos;s
-          Ed25519 signature, so a buyer, an auditor, or a marketplace can verify the verdict without
-          trusting us and without rerunning the check.
+          Every completed full verification issues a signed receipt. It carries the snapshot it judged
+          and PreFlight&apos;s Ed25519 signature, so a buyer, an auditor, or a marketplace can verify
+          that PreFlight issued an unaltered receipt for that snapshot and policy version.
         </p>
       </div>
 
