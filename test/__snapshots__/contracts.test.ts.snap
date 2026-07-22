@@ -2227,542 +2227,414 @@ exports[`Release Gate frozen contracts > freezes JSON Schema snapshots 1`] = `
   },
   "request": {
     "$defs": {
-      "__schema0": {
-        "additionalProperties": false,
-        "properties": {
-          "additionalProperties": {
-            "type": "boolean",
-          },
-          "const": {
-            "$ref": "#/$defs/__schema1",
-          },
-          "description": {
-            "maxLength": 2000,
-            "type": "string",
-          },
-          "enum": {
-            "items": {
-              "$ref": "#/$defs/__schema1",
-            },
-            "maxItems": 100,
-            "type": "array",
-          },
-          "items": {
-            "$ref": "#/$defs/__schema0",
-          },
-          "maxLength": {
-            "maximum": 9007199254740991,
-            "minimum": 0,
-            "type": "integer",
-          },
-          "maximum": {
-            "type": "number",
-          },
-          "minLength": {
-            "maximum": 9007199254740991,
-            "minimum": 0,
-            "type": "integer",
-          },
-          "minimum": {
-            "type": "number",
-          },
-          "properties": {
-            "additionalProperties": {
-              "$ref": "#/$defs/__schema0",
-            },
-            "propertyNames": {
-              "type": "string",
-            },
-            "type": "object",
-          },
-          "required": {
-            "items": {
-              "type": "string",
-            },
-            "maxItems": 100,
-            "type": "array",
-          },
-          "type": {
-            "enum": [
-              "object",
-              "array",
-              "string",
-              "number",
-              "integer",
-              "boolean",
-              "null",
-            ],
-            "type": "string",
-          },
-        },
-        "type": "object",
-      },
-      "__schema1": {
-        "anyOf": [
-          {
-            "anyOf": [
-              {
-                "type": "string",
-              },
-              {
-                "type": "number",
-              },
-              {
+      "releaseManifestV1": {
+        "$defs": {
+          "__schema0": {
+            "additionalProperties": false,
+            "properties": {
+              "additionalProperties": {
                 "type": "boolean",
               },
-              {
-                "type": "null",
+              "const": {
+                "$ref": "#/$defs/__schema1",
               },
-            ],
-          },
-          {
-            "items": {
-              "$ref": "#/$defs/__schema1",
-            },
-            "type": "array",
-          },
-          {
-            "additionalProperties": {
-              "$ref": "#/$defs/__schema1",
-            },
-            "propertyNames": {
-              "type": "string",
-            },
-            "type": "object",
-          },
-        ],
-      },
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "anyOf": [
-      {
-        "additionalProperties": false,
-        "properties": {
-          "authorize_buyer_proof": {
-            "const": true,
-            "type": "boolean",
-          },
-          "include_in_gallery": {
-            "default": false,
-            "type": "boolean",
-          },
-          "manifest": {
-            "additionalProperties": false,
-            "properties": {
-              "payment": {
-                "oneOf": [
-                  {
-                    "additionalProperties": false,
-                    "properties": {
-                      "mode": {
-                        "const": "FREE",
-                        "type": "string",
-                      },
-                    },
-                    "required": [
-                      "mode",
-                    ],
-                    "type": "object",
-                  },
-                  {
-                    "additionalProperties": false,
-                    "properties": {
-                      "amount_atomic": {
-                        "pattern": "^\\d+$",
-                        "type": "string",
-                      },
-                      "asset": {
-                        "minLength": 1,
-                        "type": "string",
-                      },
-                      "mode": {
-                        "const": "X402",
-                        "type": "string",
-                      },
-                      "network": {
-                        "minLength": 1,
-                        "type": "string",
-                      },
-                      "pay_to": {
-                        "pattern": "^0x[a-fA-F0-9]{40}$",
-                        "type": "string",
-                      },
-                    },
-                    "required": [
-                      "mode",
-                      "network",
-                      "asset",
-                      "amount_atomic",
-                      "pay_to",
-                    ],
-                    "type": "object",
-                  },
-                ],
-              },
-              "release": {
-                "additionalProperties": false,
-                "properties": {
-                  "release_version": {
-                    "maxLength": 120,
-                    "minLength": 1,
-                    "type": "string",
-                  },
-                  "service_name": {
-                    "maxLength": 120,
-                    "minLength": 1,
-                    "type": "string",
-                  },
-                },
-                "required": [
-                  "service_name",
-                ],
-                "type": "object",
-              },
-              "request_contract": {
-                "additionalProperties": false,
-                "properties": {
-                  "content_type": {
-                    "const": "application/json",
-                    "type": "string",
-                  },
-                  "schema": {
-                    "$ref": "#/$defs/__schema0",
-                  },
-                },
-                "required": [
-                  "content_type",
-                  "schema",
-                ],
-                "type": "object",
-              },
-              "response_contract": {
-                "additionalProperties": false,
-                "properties": {
-                  "observable_via": {
-                    "enum": [
-                      "MCP_OUTPUT_SCHEMA",
-                      "FREE_RESPONSE",
-                    ],
-                    "type": "string",
-                  },
-                  "required": {
-                    "type": "boolean",
-                  },
-                  "schema": {
-                    "$ref": "#/$defs/__schema0",
-                  },
-                },
-                "required": [
-                  "required",
-                  "schema",
-                  "observable_via",
-                ],
-                "type": "object",
-              },
-              "schema_version": {
-                "const": "preflight.release-manifest.v1",
+              "description": {
+                "maxLength": 2000,
                 "type": "string",
               },
-              "target": {
-                "additionalProperties": false,
-                "properties": {
-                  "endpoint": {
-                    "format": "uri",
-                    "type": "string",
-                  },
-                  "interface_mode": {
-                    "enum": [
-                      "FREE_HTTP",
-                      "X402_HTTP",
-                      "MCP_PLUS_FREE_HTTP",
-                      "MCP_PLUS_X402_HTTP",
-                    ],
-                    "type": "string",
-                  },
-                  "mcp_url": {
-                    "format": "uri",
-                    "type": "string",
-                  },
-                  "method": {
-                    "const": "POST",
-                    "type": "string",
-                  },
-                  "redirect_policy": {
-                    "enum": [
-                      "NONE",
-                      "SAME_ORIGIN",
-                    ],
-                    "type": "string",
-                  },
+              "enum": {
+                "items": {
+                  "$ref": "#/$defs/__schema1",
                 },
-                "required": [
-                  "endpoint",
-                  "method",
-                  "interface_mode",
-                ],
+                "maxItems": 100,
+                "type": "array",
+              },
+              "items": {
+                "$ref": "#/$defs/__schema0",
+              },
+              "maxLength": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer",
+              },
+              "maximum": {
+                "type": "number",
+              },
+              "minLength": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer",
+              },
+              "minimum": {
+                "type": "number",
+              },
+              "properties": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0",
+                },
+                "propertyNames": {
+                  "type": "string",
+                },
                 "type": "object",
+              },
+              "required": {
+                "items": {
+                  "type": "string",
+                },
+                "maxItems": 100,
+                "type": "array",
+              },
+              "type": {
+                "enum": [
+                  "object",
+                  "array",
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "null",
+                ],
+                "type": "string",
               },
             },
-            "required": [
-              "schema_version",
-              "release",
-              "target",
-              "payment",
-            ],
             "type": "object",
           },
-          "owner_attestation": {
-            "const": true,
-            "type": "boolean",
-          },
-          "probe_input": {
-            "$ref": "#/$defs/__schema1",
-          },
-          "schema_version": {
-            "const": "preflight.verify-release-request.v1",
-            "type": "string",
-          },
-        },
-        "required": [
-          "schema_version",
-          "manifest",
-        ],
-        "type": "object",
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "agent_id": {
-            "maxLength": 200,
-            "minLength": 1,
-            "type": "string",
-          },
-          "authorize_buyer_proof": {
-            "const": true,
-            "type": "boolean",
-          },
-          "endpoint": {
-            "format": "uri",
-            "type": "string",
-          },
-          "expected": {
-            "additionalProperties": false,
-            "properties": {
-              "payment": {
-                "oneOf": [
+          "__schema1": {
+            "anyOf": [
+              {
+                "anyOf": [
                   {
-                    "additionalProperties": false,
-                    "properties": {
-                      "mode": {
-                        "const": "FREE",
-                        "type": "string",
-                      },
-                    },
-                    "required": [
-                      "mode",
-                    ],
-                    "type": "object",
+                    "type": "string",
                   },
                   {
-                    "additionalProperties": false,
-                    "properties": {
-                      "amount_atomic": {
-                        "pattern": "^\\d+$",
-                        "type": "string",
-                      },
-                      "asset": {
-                        "minLength": 1,
-                        "type": "string",
-                      },
-                      "mode": {
-                        "const": "X402",
-                        "type": "string",
-                      },
-                      "network": {
-                        "minLength": 1,
-                        "type": "string",
-                      },
-                      "pay_to": {
-                        "pattern": "^0x[a-fA-F0-9]{40}$",
-                        "type": "string",
-                      },
-                    },
-                    "required": [
-                      "mode",
-                    ],
-                    "type": "object",
+                    "type": "number",
                   },
-                ],
-              },
-              "release": {
-                "additionalProperties": false,
-                "properties": {
-                  "release_version": {
-                    "maxLength": 120,
-                    "minLength": 1,
-                    "type": "string",
-                  },
-                  "service_name": {
-                    "maxLength": 120,
-                    "minLength": 1,
-                    "type": "string",
-                  },
-                },
-                "type": "object",
-              },
-              "request_contract": {
-                "additionalProperties": false,
-                "properties": {
-                  "content_type": {
-                    "const": "application/json",
-                    "type": "string",
-                  },
-                  "schema": {
-                    "$ref": "#/$defs/__schema0",
-                  },
-                },
-                "required": [
-                  "content_type",
-                  "schema",
-                ],
-                "type": "object",
-              },
-              "response_contract": {
-                "additionalProperties": false,
-                "properties": {
-                  "observable_via": {
-                    "enum": [
-                      "MCP_OUTPUT_SCHEMA",
-                      "FREE_RESPONSE",
-                    ],
-                    "type": "string",
-                  },
-                  "required": {
+                  {
                     "type": "boolean",
                   },
-                  "schema": {
-                    "$ref": "#/$defs/__schema0",
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              {
+                "items": {
+                  "$ref": "#/$defs/__schema1",
+                },
+                "type": "array",
+              },
+              {
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema1",
+                },
+                "propertyNames": {
+                  "type": "string",
+                },
+                "type": "object",
+              },
+            ],
+          },
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "payment": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "mode": {
+                    "const": "FREE",
+                    "type": "string",
                   },
                 },
                 "required": [
-                  "required",
-                  "schema",
-                  "observable_via",
+                  "mode",
                 ],
                 "type": "object",
               },
-              "target": {
+              {
                 "additionalProperties": false,
                 "properties": {
-                  "endpoint": {
-                    "format": "uri",
+                  "amount_atomic": {
+                    "pattern": "^\\d+$",
                     "type": "string",
                   },
-                  "interface_mode": {
-                    "enum": [
-                      "FREE_HTTP",
-                      "X402_HTTP",
-                      "MCP_PLUS_FREE_HTTP",
-                      "MCP_PLUS_X402_HTTP",
-                    ],
+                  "asset": {
+                    "minLength": 1,
                     "type": "string",
                   },
-                  "mcp_url": {
-                    "format": "uri",
+                  "mode": {
+                    "const": "X402",
                     "type": "string",
                   },
-                  "method": {
-                    "const": "POST",
+                  "network": {
+                    "minLength": 1,
                     "type": "string",
                   },
-                  "redirect_policy": {
-                    "enum": [
-                      "NONE",
-                      "SAME_ORIGIN",
-                    ],
+                  "pay_to": {
+                    "pattern": "^0x[a-fA-F0-9]{40}$",
                     "type": "string",
                   },
                 },
+                "required": [
+                  "mode",
+                  "network",
+                  "asset",
+                  "amount_atomic",
+                  "pay_to",
+                ],
                 "type": "object",
               },
-            },
-            "type": "object",
+            ],
           },
-          "include_in_gallery": {
-            "default": false,
-            "type": "boolean",
-          },
-          "listing_override": {
+          "release": {
             "additionalProperties": false,
             "properties": {
-              "name": {
-                "maxLength": 200,
+              "release_version": {
+                "maxLength": 120,
                 "minLength": 1,
                 "type": "string",
               },
-              "services": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "asset_contract": {
-                      "pattern": "^0x[a-fA-F0-9]{40}$",
-                      "type": "string",
-                    },
-                    "endpoint": {
-                      "format": "uri",
-                      "type": "string",
-                    },
-                    "fee": {
-                      "pattern": "^\\d+(?:\\.\\d{1,6})?$",
-                      "type": "string",
-                    },
-                    "name": {
-                      "minLength": 1,
-                      "type": "string",
-                    },
-                    "service_id": {
-                      "minLength": 1,
-                      "type": "string",
-                    },
-                    "type": {
-                      "minLength": 1,
-                      "type": "string",
-                    },
-                  },
-                  "required": [
-                    "service_id",
-                    "type",
-                    "endpoint",
-                  ],
-                  "type": "object",
-                },
-                "minItems": 1,
-                "type": "array",
+              "service_name": {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string",
               },
             },
             "required": [
-              "services",
+              "service_name",
             ],
             "type": "object",
           },
-          "owner_attestation": {
-            "const": true,
-            "type": "boolean",
+          "request_contract": {
+            "additionalProperties": false,
+            "properties": {
+              "content_type": {
+                "const": "application/json",
+                "type": "string",
+              },
+              "schema": {
+                "$ref": "#/$defs/__schema0",
+              },
+            },
+            "required": [
+              "content_type",
+              "schema",
+            ],
+            "type": "object",
           },
-          "probe_input": {
-            "$ref": "#/$defs/__schema1",
+          "response_contract": {
+            "additionalProperties": false,
+            "properties": {
+              "observable_via": {
+                "enum": [
+                  "MCP_OUTPUT_SCHEMA",
+                  "FREE_RESPONSE",
+                ],
+                "type": "string",
+              },
+              "required": {
+                "type": "boolean",
+              },
+              "schema": {
+                "$ref": "#/$defs/__schema0",
+              },
+            },
+            "required": [
+              "required",
+              "schema",
+              "observable_via",
+            ],
+            "type": "object",
           },
           "schema_version": {
-            "const": "preflight.verify-release-request.v1",
+            "const": "preflight.release-manifest.v1",
             "type": "string",
+          },
+          "target": {
+            "additionalProperties": false,
+            "properties": {
+              "endpoint": {
+                "format": "uri",
+                "type": "string",
+              },
+              "interface_mode": {
+                "enum": [
+                  "FREE_HTTP",
+                  "X402_HTTP",
+                  "MCP_PLUS_FREE_HTTP",
+                  "MCP_PLUS_X402_HTTP",
+                ],
+                "type": "string",
+              },
+              "mcp_url": {
+                "format": "uri",
+                "type": "string",
+              },
+              "method": {
+                "const": "POST",
+                "type": "string",
+              },
+              "redirect_policy": {
+                "enum": [
+                  "NONE",
+                  "SAME_ORIGIN",
+                ],
+                "type": "string",
+              },
+            },
+            "required": [
+              "endpoint",
+              "method",
+              "interface_mode",
+            ],
+            "type": "object",
           },
         },
         "required": [
           "schema_version",
+          "release",
+          "target",
+          "payment",
         ],
         "type": "object",
       },
+    },
+    "$id": "https://api.usepreflight.xyz/api/v1/contracts/verify-release-request/v1",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "authorize_buyer_proof": {
+              "const": true,
+            },
+          },
+          "required": [
+            "authorize_buyer_proof",
+          ],
+        },
+        "then": {
+          "properties": {
+            "owner_attestation": {
+              "const": true,
+            },
+          },
+          "required": [
+            "owner_attestation",
+          ],
+        },
+      },
     ],
+    "description": "Canonical public input for PreFlight Release Gate. Generic buyers only need endpoint. schema_version is optional and defaults internally to preflight.verify-release-request.v1.",
+    "examples": [
+      {
+        "endpoint": "https://public-service.example/path",
+      },
+    ],
+    "oneOf": [
+      {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "agent_id",
+              ],
+            },
+            {
+              "required": [
+                "manifest",
+              ],
+            },
+          ],
+        },
+        "required": [
+          "endpoint",
+        ],
+      },
+      {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "endpoint",
+              ],
+            },
+            {
+              "required": [
+                "manifest",
+              ],
+            },
+          ],
+        },
+        "required": [
+          "agent_id",
+        ],
+      },
+      {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "endpoint",
+              ],
+            },
+            {
+              "required": [
+                "agent_id",
+              ],
+            },
+          ],
+        },
+        "required": [
+          "manifest",
+        ],
+      },
+    ],
+    "properties": {
+      "agent_id": {
+        "description": "Optional alternative to endpoint: resolve an OKX.AI Agent ID and verify its A2MCP service.",
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string",
+      },
+      "authorize_buyer_proof": {
+        "description": "Optional; defaults to false. When true, PreFlight may make a bounded outbound buyer-proof payment to the target.",
+        "type": "boolean",
+      },
+      "endpoint": {
+        "description": "Canonical target field. Must be a public HTTPS service endpoint, for example https://public-service.example/path.",
+        "format": "uri",
+        "type": "string",
+      },
+      "expected": {
+        "description": "Optional caller expectations compared against observed release behavior.",
+      },
+      "include_in_gallery": {
+        "description": "Optional; defaults to false. Opts BLOCK/UNKNOWN redacted results into the public gallery.",
+        "type": "boolean",
+      },
+      "manifest": {
+        "$ref": "#/$defs/releaseManifestV1",
+        "description": "Advanced operator-confirmed manifest request. Use endpoint for generic buyer integrations.",
+      },
+      "owner_attestation": {
+        "description": "Required and must be true only when authorize_buyer_proof is true.",
+        "type": "boolean",
+      },
+      "probe_input": {
+        "description": "Optional JSON payload used only for discovery/probe requests.",
+      },
+      "schema_version": {
+        "const": "preflight.verify-release-request.v1",
+        "description": "Optional; defaults internally when omitted.",
+        "type": "string",
+      },
+    },
+    "title": "PreFlight verify_release request",
+    "type": "object",
   },
   "runStatus": {
     "$defs": {

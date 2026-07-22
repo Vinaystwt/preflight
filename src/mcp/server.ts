@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { FastifyInstance } from "fastify";
 import type { Config } from "../config.js";
-import { verifyReleaseRequestV1Schema } from "../contracts/release-gate.js";
+import { verifyReleaseRequestV1JsonSchema } from "../contracts/release-gate.js";
 
 const SERVICE = {
   service: "verify_release",
@@ -29,9 +29,9 @@ function createDiscoveryServer(config: Config): McpServer {
     server.registerTool("verify_release", {
       title: "Verify Release",
       description: "Paid Release Gate verification. Unpaid MCP calls return a pointer to the canonical x402 HTTP service.",
-      inputSchema: verifyReleaseRequestV1Schema,
+      inputSchema: verifyReleaseRequestV1JsonSchema,
       annotations: { readOnlyHint: true }
-    }, () => {
+    } as never, () => {
       const pointer = paidPointer(config);
       return { content: [{ type: "text" as const, text: JSON.stringify(pointer) }], structuredContent: pointer };
     });
@@ -92,7 +92,12 @@ function paidPointer(config: Config) {
     paid: true,
     price_usdt: config.PRICE_VERIFY_RELEASE,
     endpoint: `POST https://${config.PUBLIC_DOMAIN}/api/v1/verify-release`,
-    how: "x402 v2: expect 402 + PAYMENT-REQUIRED, replay with PAYMENT-SIGNATURE"
+    how: "x402 v2: expect 402 + PAYMENT-REQUIRED, replay with PAYMENT-SIGNATURE",
+    input: {
+      canonical_example: { endpoint: "https://public-service.example/path" },
+      schema_url: `https://${config.PUBLIC_DOMAIN}/api/v1/contracts/verify-release-request/v1`,
+      json_schema: verifyReleaseRequestV1JsonSchema
+    }
   };
 }
 function serviceInfo(config: Config) {
@@ -108,11 +113,8 @@ function toolDefinitions(config: Config) {
     name: "verify_release",
     title: "Verify Release",
     description: "Paid Release Gate verification. Unpaid MCP calls return a pointer to the canonical x402 HTTP service.",
-    inputSchema: zodJsonSchemaPlaceholder()
+    inputSchema: verifyReleaseRequestV1JsonSchema
   }] : tools;
-}
-function zodJsonSchemaPlaceholder() {
-  return { type: "object" };
 }
 
 function safeJson(value: string): unknown {

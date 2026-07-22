@@ -4,7 +4,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z, ZodError } from "zod";
 import type { Config } from "../config.js";
 import { canonicalHash, type JsonValue } from "../contracts/canonical.js";
-import { CONTRACT_VERSIONS, apiErrorV1Schema, discoveryResponseV1Schema, galleryResponseV1Schema, machineReportV1Schema, manifestHash, pubkeysResponseV1Schema, receiptEnvelopeV1Schema, releaseManifestV1Schema, runStatusV1Schema, runtimeSnapshotHash, verifyReleaseRequestV1Schema, type ApiErrorV1, type CriterionResult, type RunStageEventV1, type VerifyReleaseResponseV1 } from "../contracts/release-gate.js";
+import { CONTRACT_VERSIONS, apiErrorV1Schema, discoveryResponseV1Schema, galleryResponseV1Schema, machineReportV1Schema, manifestHash, pubkeysResponseV1Schema, receiptEnvelopeV1Schema, releaseManifestV1Schema, runStatusV1Schema, runtimeSnapshotHash, verifyReleaseRequestV1JsonSchema, verifyReleaseRequestV1Schema, type ApiErrorV1, type CriterionResult, type RunStageEventV1, type VerifyReleaseResponseV1 } from "../contracts/release-gate.js";
 import type { Database } from "../db/client.js";
 import { EgressPolicyError, SafeEgressClient } from "../egress/safe-client.js";
 import { createBuyerProofClient, type BuyerProofClient } from "../payments/buyer.js";
@@ -39,23 +39,24 @@ function bearer(request: { headers: { authorization?: string | string[] }; query
 }
 const delay = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 const verifyReleaseAuth = new WeakMap<FastifyRequest, { paymentPayload: ReturnType<ReleasePaymentGateway["decode"]>; matched: Awaited<ReturnType<ReleasePaymentGateway["requirements"]>>[number]; verified: Awaited<ReturnType<ReleasePaymentGateway["verify"]>> }>();
-const verifyReleaseBody = new WeakMap<FastifyRequest, { ok: true; body: unknown } | { ok: false }>();
+const verifyReleaseBody = new WeakMap<FastifyRequest, { ok: true; body: unknown } | { ok: false; code: string; message: string }>();
 function retryAfter(window: "day" | "hour" | "minute"): number {
   const now = new Date();
   if (window === "minute") return 60 - now.getUTCSeconds();
   if (window === "hour") return (60 - now.getUTCMinutes() - 1) * 60 + (60 - now.getUTCSeconds());
   return (24 - now.getUTCHours() - 1) * 3600 + (60 - now.getUTCMinutes() - 1) * 60 + (60 - now.getUTCSeconds());
 }
-async function parseAuthorizedBody(payload: AsyncIterable<Buffer>, contentType: string | string[] | undefined): Promise<{ ok: true; body: unknown } | { ok: false }> {
-  if (Array.isArray(contentType) || !contentType?.toLowerCase().includes("application/json")) return { ok: false };
+async function parseAuthorizedBody(payload: AsyncIterable<Buffer>, contentType: string | string[] | undefined): Promise<{ ok: true; body: unknown } | { ok: false; code: string; message: string }> {
+  if (Array.isArray(contentType) || !contentType?.toLowerCase().includes("application/json")) return { ok: false, code: "invalid_content_type", message: "Content-Type must be application/json." };
   const chunks: Buffer[] = []; let size = 0;
   for await (const chunk of payload) {
     size += chunk.length;
-    if (size > 1_000_000) return { ok: false };
+    if (size > 1_000_000) return { ok: false, code: "body_too_large", message: "Request body must be at most 1 MB." };
     chunks.push(chunk);
   }
+  if (!chunks.length) return { ok: false, code: "missing_body", message: "Request body must be a JSON object." };
   try { return { ok: true, body: JSON.parse(Buffer.concat(chunks).toString("utf8")) }; }
-  catch { return { ok: false }; }
+  catch { return { ok: false, code: "invalid_json", message: "Request body must be valid JSON." }; }
 }
 function parsedPlaceholder(encodedLength: string | string[] | undefined) {
   const replacement = Readable.from([Buffer.from("{}")]) as Readable & { receivedEncodedLength?: number };
@@ -102,6 +103,31 @@ function redactedGalleryReport(report: Omit<VerifyReleaseResponseV1, "report_acc
     why: criteria.map((criterion) => criterion.consequence ?? criterion.limitation ?? criterion.comparison_rule).slice(0, 20),
     fix: criteria.flatMap((criterion) => criterion.remediation ? [criterion.remediation] : []).slice(0, 20),
     generated_at: report.generated_at
+  };
+}
+
+function validationIssues(cause: ZodError): Array<{ path: string; code: string; message: string }> {
+  return cause.issues.flatMap((issue) => {
+    const keys = "keys" in issue && Array.isArray(issue.keys) ? issue.keys : null;
+    if (keys?.length) return keys.map((key) => ({ path: [...issue.path, key].join(".") || key, code: issue.code, message: `Unknown field: ${key}` }));
+    return [{ path: issue.path.join(".") || "$", code: issue.code, message: issue.message }];
+  });
+}
+
+function invalidVerifyRequest(requestId: string, config: Config, issues: Array<{ path: string; code: string; message: string }>) {
+  const failure = error(requestId, "VERIFY_REQUEST_INVALID", "Verify request validation failed.", "VALIDATION", 400);
+  return {
+    ...failure.body,
+    error: {
+      ...failure.body.error,
+      details: {
+        issues,
+        accepted_input: {
+          canonical_example: { endpoint: "https://public-service.example/path" },
+          schema_url: `https://${config.PUBLIC_DOMAIN}/api/v1/contracts/verify-release-request/v1`
+        }
+      }
+    }
   };
 }
 
@@ -175,7 +201,8 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
     reconciliationTimer.unref();
   }
 
-  app.get("/api/v1/service", async () => ({ schema_version: "preflight.service.v1", service: "verify_release", purpose: "Compare an operator-confirmed release manifest with observable production behavior.", price_usdt: config.PRICE_VERIFY_RELEASE, network: config.RELEASE_PAYMENT_NETWORK, asset: config.RELEASE_PAYMENT_ASSET, endpoint: `https://${config.PUBLIC_DOMAIN}/api/v1/verify-release`, contracts: "/api/v1/contracts/release-manifest/v1", decisions: ["RELEASE", "BLOCK", "UNKNOWN"], limitations: ["Public HTTPS only", "No target payment", "No security or listing-approval guarantee"] }));
+  app.get("/api/v1/service", async () => ({ schema_version: "preflight.service.v1", service: "verify_release", purpose: "Compare an operator-confirmed release manifest with observable production behavior.", price_usdt: config.PRICE_VERIFY_RELEASE, network: config.RELEASE_PAYMENT_NETWORK, asset: config.RELEASE_PAYMENT_ASSET, endpoint: `https://${config.PUBLIC_DOMAIN}/api/v1/verify-release`, method: "POST", input: { canonical_example: { endpoint: "https://public-service.example/path" }, schema_url: `https://${config.PUBLIC_DOMAIN}/api/v1/contracts/verify-release-request/v1`, json_schema: verifyReleaseRequestV1JsonSchema }, contracts: { request: "/api/v1/contracts/verify-release-request/v1", manifest: "/api/v1/contracts/release-manifest/v1", machine_report: "/api/v1/contracts/machine-report/v1", run_events: "/api/v1/contracts/run-events/v1" }, decisions: ["RELEASE", "BLOCK", "UNKNOWN"], limitations: ["Public HTTPS only", "No target payment unless authorize_buyer_proof:true and owner_attestation:true", "No listing-approval or security guarantee"] }));
+  app.get("/api/v1/contracts/verify-release-request/v1", async () => ({ schema_version: CONTRACT_VERSIONS.request, json_schema: verifyReleaseRequestV1JsonSchema, canonical_example: { endpoint: "https://public-service.example/path" } }));
   app.get("/api/v1/contracts/release-manifest/v1", async () => ({ schema_version: CONTRACT_VERSIONS.manifest, json_schema: z.toJSONSchema(releaseManifestV1Schema) }));
   app.get("/api/v1/contracts/discovery/v1", async () => ({ schema_version: CONTRACT_VERSIONS.discovery, json_schema: z.toJSONSchema(discoveryResponseV1Schema) }));
   app.get("/api/v1/contracts/run-events/v1", async () => ({ schema_version: CONTRACT_VERSIONS.runStatus, json_schema: z.toJSONSchema(runStatusV1Schema) }));
@@ -323,16 +350,27 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
 
     const body = verifyReleaseBody.get(request);
     let parsed: ReturnType<typeof verifyReleaseRequestV1Schema.parse>;
-    try { if (!body?.ok) throw new ZodError([]); parsed = verifyReleaseRequestV1Schema.parse(body.body); }
-    catch (cause) { const failure = error(request.id, "VERIFY_REQUEST_INVALID", cause instanceof ZodError ? "Verify request validation failed." : "Invalid request.", "VALIDATION", 400); return reply.code(failure.status).send(failure.body); }
+    try {
+      if (!body?.ok) return reply.code(400).send(invalidVerifyRequest(request.id, config, [{ path: "$", code: body?.code ?? "invalid_body", message: body?.message ?? "Request body must be a JSON object." }]));
+      parsed = verifyReleaseRequestV1Schema.parse(body.body);
+    }
+    catch (cause) {
+      const issues = cause instanceof ZodError ? validationIssues(cause) : [{ path: "$", code: "invalid_request", message: "Invalid request." }];
+      return reply.code(400).send(invalidVerifyRequest(request.id, config, issues));
+    }
     const buyerRequested = "authorize_buyer_proof" in parsed && parsed.authorize_buyer_proof === true;
     const includeInGallery = "include_in_gallery" in parsed && parsed.include_in_gallery === true;
     if (buyerRequested && (!("owner_attestation" in parsed) || parsed.owner_attestation !== true)) {
       const failure = error(request.id, "BUYER_OWNER_ATTESTATION_REQUIRED", "Buyer proof requires owner_attestation:true before any outbound payment can be attempted.", "VALIDATION", 400);
       return reply.code(failure.status).send(failure.body);
     }
-    const idempotencyKey = request.headers["idempotency-key"];
-    if (typeof idempotencyKey !== "string" || idempotencyKey.length < 16) { const failure = error(request.id, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key must contain at least 16 characters.", "VALIDATION", 400); return reply.code(failure.status).send(failure.body); }
+    const paymentPayloadHash = canonicalHash(paymentPayload as unknown as JsonValue);
+    const canonicalRequestHash = canonicalHash(parsed as unknown as JsonValue);
+    const { resourceUrl } = await verifyReleaseRequirements();
+    const idempotencyHeader = request.headers["idempotency-key"];
+    const idempotencyKey = typeof idempotencyHeader === "string" && idempotencyHeader.length >= 16
+      ? `client:${idempotencyHeader}:request:${canonicalRequestHash}`
+      : `server:${resourceUrl}:payment:${paymentPayloadHash}:request:${canonicalRequestHash}`;
     let resolved: { manifest: import("../contracts/release-gate.js").ReleaseManifestV1; probeInput?: unknown; discovery?: import("../contracts/release-gate.js").DiscoveryResponseV1; listing?: { agentId: string; serviceId: string; name: string | null; fee: string | null; asset: string | null; type: string | null } };
     try {
       resolved = "manifest" in parsed ? { manifest: parsed.manifest, probeInput: parsed.probe_input } : await (async () => {
@@ -372,7 +410,7 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
     }
     let paymentId: string | null = null; let settlementConfirmed = false;
     try {
-      paymentId = await repository.createPayment(run.id, { payloadHash: canonicalHash(paymentPayload as unknown as JsonValue), identifier: idempotencyKey, network: matched.network, asset: matched.asset, amount: matched.amount, payTo: matched.payTo, payer: payer(paymentPayload) });
+      paymentId = await repository.createPayment(run.id, { payloadHash: paymentPayloadHash, identifier: idempotencyKey, network: matched.network, asset: matched.asset, amount: matched.amount, payTo: matched.payTo, payer: payer(paymentPayload) });
       if (!paymentId) { await repository.audit(run.id, "PAYMENT_REPLAY_REJECTED", {}); const failure = error(request.id, "PAYMENT_REPLAY", "This payment payload has already been used.", "PAYMENT", 409, "NOT_CHARGED"); return reply.code(failure.status).send(failure.body); }
       const payerKey = verified.payer ?? payer(paymentPayload) ?? "unknown";
       const [payerLimit, targetLimit] = await Promise.all([

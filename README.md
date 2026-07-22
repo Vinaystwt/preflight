@@ -127,10 +127,19 @@ Open [usepreflight.xyz](https://usepreflight.xyz), paste a public endpoint or an
 
 ```bash
 curl -s https://api.usepreflight.xyz/api/v1/service | jq
+curl -s https://api.usepreflight.xyz/api/v1/contracts/verify-release-request/v1 | jq
 curl -s https://api.usepreflight.xyz/api/v1/contracts/release-manifest/v1 | jq
 ```
 
 POST /api/v1/verify-release is the paid x402 release-check endpoint. An unpaid request returns a payment challenge; a funded client replays the request with the required payment proof.
+
+Canonical minimum paid request:
+
+```json
+{ "endpoint": "https://public-service.example/path" }
+```
+
+`schema_version` is optional and defaults internally. `agent_id` is the supported alternative to `endpoint`; provide exactly one target. `Idempotency-Key` is optional for generic buyers.
 
 Public endpoints (no auth required):
 

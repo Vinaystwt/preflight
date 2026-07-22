@@ -77,8 +77,11 @@ export const manifestExpectationV1Schema = z.object({
 }).strict();
 export type ManifestExpectationV1 = z.infer<typeof manifestExpectationV1Schema>;
 
+const verifyReleaseSchemaVersion = z.literal("preflight.verify-release-request.v1").optional().default("preflight.verify-release-request.v1");
+const targetAliases = ["endpoint", "url", "target_url", "targetUrl", "service_url", "service_endpoint", "agent_url"] as const;
+
 const manifestVerifyReleaseRequestV1Schema = z.object({
-  schema_version: z.literal("preflight.verify-release-request.v1"),
+  schema_version: verifyReleaseSchemaVersion,
   manifest: releaseManifestV1Schema,
   probe_input: jsonValueSchema.optional(),
   authorize_buyer_proof: z.literal(true).optional(),
@@ -87,8 +90,15 @@ const manifestVerifyReleaseRequestV1Schema = z.object({
 }).strict();
 
 const discoveryVerifyReleaseRequestV1Schema = z.object({
-  schema_version: z.literal("preflight.verify-release-request.v1"),
+  schema_version: verifyReleaseSchemaVersion,
   endpoint: httpsUrl.optional(),
+  url: httpsUrl.optional(),
+  target_url: httpsUrl.optional(),
+  targetUrl: httpsUrl.optional(),
+  service_url: httpsUrl.optional(),
+  service_endpoint: httpsUrl.optional(),
+  agent_url: httpsUrl.optional(),
+  target: z.object({ endpoint: httpsUrl }).strict().optional(),
   agent_id: z.string().min(1).max(200).optional(),
   expected: manifestExpectationV1Schema.optional(),
   // Used only when the authenticated OKX resolver is unavailable. It is
@@ -102,12 +112,64 @@ const discoveryVerifyReleaseRequestV1Schema = z.object({
   owner_attestation: z.literal(true).optional(),
   include_in_gallery: z.boolean().default(false).optional()
 }).strict().superRefine((value, context) => {
-  const count = [value.endpoint, value.agent_id].filter(Boolean).length;
-  if (count !== 1) context.addIssue({ code: "custom", message: "Provide exactly one of endpoint or agent_id" });
+  const endpointValues = [...targetAliases.map((field) => ({ field, value: value[field] })), { field: "target.endpoint", value: value.target?.endpoint }].filter((item): item is { field: string; value: string } => typeof item.value === "string");
+  const uniqueEndpoints = [...new Set(endpointValues.map((item) => item.value))];
+  if (uniqueEndpoints.length > 1) {
+    context.addIssue({ code: "custom", path: ["endpoint"], message: `Conflicting endpoint aliases supplied: ${endpointValues.map((item) => item.field).join(", ")}` });
+    return;
+  }
+  const count = [uniqueEndpoints[0], value.agent_id].filter(Boolean).length;
+  if (count !== 1) context.addIssue({ code: "custom", path: ["endpoint"], message: "Provide exactly one of endpoint or agent_id" });
+}).transform((value) => {
+  const endpoint = value.endpoint ?? value.url ?? value.target_url ?? value.targetUrl ?? value.service_url ?? value.service_endpoint ?? value.agent_url ?? value.target?.endpoint;
+  return {
+    schema_version: value.schema_version,
+    ...(endpoint ? { endpoint } : {}),
+    ...(value.agent_id ? { agent_id: value.agent_id } : {}),
+    ...(value.expected ? { expected: value.expected } : {}),
+    ...(value.listing_override ? { listing_override: value.listing_override } : {}),
+    ...(value.probe_input !== undefined ? { probe_input: value.probe_input } : {}),
+    ...(value.authorize_buyer_proof === true ? { authorize_buyer_proof: true as const } : {}),
+    ...(value.owner_attestation === true ? { owner_attestation: true as const } : {}),
+    include_in_gallery: value.include_in_gallery ?? false
+  };
 });
 
 export const verifyReleaseRequestV1Schema = z.union([manifestVerifyReleaseRequestV1Schema, discoveryVerifyReleaseRequestV1Schema]);
 export type VerifyReleaseRequestV1 = z.infer<typeof verifyReleaseRequestV1Schema>;
+
+export const verifyReleaseRequestV1JsonSchema = {
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  $id: "https://api.usepreflight.xyz/api/v1/contracts/verify-release-request/v1",
+  title: "PreFlight verify_release request",
+  description: "Canonical public input for PreFlight Release Gate. Generic buyers only need endpoint. schema_version is optional and defaults internally to preflight.verify-release-request.v1.",
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    schema_version: { type: "string", const: "preflight.verify-release-request.v1", description: "Optional; defaults internally when omitted." },
+    endpoint: { type: "string", format: "uri", description: "Canonical target field. Must be a public HTTPS service endpoint, for example https://public-service.example/path." },
+    agent_id: { type: "string", minLength: 1, maxLength: 200, description: "Optional alternative to endpoint: resolve an OKX.AI Agent ID and verify its A2MCP service." },
+    manifest: { description: "Advanced operator-confirmed manifest request. Use endpoint for generic buyer integrations.", $ref: "#/$defs/releaseManifestV1" },
+    expected: { description: "Optional caller expectations compared against observed release behavior." },
+    probe_input: { description: "Optional JSON payload used only for discovery/probe requests." },
+    authorize_buyer_proof: { type: "boolean", description: "Optional; defaults to false. When true, PreFlight may make a bounded outbound buyer-proof payment to the target." },
+    owner_attestation: { type: "boolean", description: "Required and must be true only when authorize_buyer_proof is true." },
+    include_in_gallery: { type: "boolean", description: "Optional; defaults to false. Opts BLOCK/UNKNOWN redacted results into the public gallery." }
+  },
+  oneOf: [
+    { required: ["endpoint"], not: { anyOf: [{ required: ["agent_id"] }, { required: ["manifest"] }] } },
+    { required: ["agent_id"], not: { anyOf: [{ required: ["endpoint"] }, { required: ["manifest"] }] } },
+    { required: ["manifest"], not: { anyOf: [{ required: ["endpoint"] }, { required: ["agent_id"] }] } }
+  ],
+  allOf: [
+    {
+      if: { properties: { authorize_buyer_proof: { const: true } }, required: ["authorize_buyer_proof"] },
+      then: { properties: { owner_attestation: { const: true } }, required: ["owner_attestation"] }
+    }
+  ],
+  examples: [{ endpoint: "https://public-service.example/path" }],
+  $defs: { releaseManifestV1: z.toJSONSchema(releaseManifestV1Schema) }
+} as const;
 
 export const proposedManifestFieldV1Schema = z.object({
   value: jsonValueSchema.optional(),

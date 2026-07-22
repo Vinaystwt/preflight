@@ -73,7 +73,7 @@ describe.skipIf(!databaseUrl)("settlement-before-publication lifecycle", () => {
       await sql.unsafe(`SET search_path TO ${schema}`); await applyReleaseMigrations(sql);
       const config = loadConfig({ NODE_ENV: "test", BUILD_SHA: "abcdef1", DATABASE_URL: databaseUrl!, OPERATOR_WALLET: "0x7bb9c4d6e06b9dee783eb31ff73d9345803efbd2", REPORT_TOKEN_SECRET: "test-secret-that-is-longer-than-thirty-two-bytes" });
       const app = Fastify(); const fake = gateway({ decode: vi.fn((signature) => { if (signature !== "paid") throw new Error("invalid authorization"); return paymentPayload as never; }) }); mountReleaseGate(app, config, { sql } as unknown as Database, { gateway: fake, egress: egress() });
-      const validEndpointRequest = { schema_version: "preflight.verify-release-request.v1", endpoint: manifestFixture.target.endpoint };
+      const validEndpointRequest = { endpoint: manifestFixture.target.endpoint };
 
       const withBody = await app.inject({ method: "POST", url: "/api/v1/verify-release", payload: validEndpointRequest });
       expect(withBody.statusCode).toBe(402);
@@ -90,7 +90,7 @@ describe.skipIf(!databaseUrl)("settlement-before-publication lifecycle", () => {
 
       const invalidPaidBody = await app.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "payment-signature": "paid" }, payload: { invalid: true } });
       expect(invalidPaidBody.statusCode).toBe(400);
-      expect(invalidPaidBody.json()).toMatchObject({ error: { code: "VERIFY_REQUEST_INVALID", charge_status: "NOT_CHARGED" } });
+      expect(invalidPaidBody.json()).toMatchObject({ error: { code: "VERIFY_REQUEST_INVALID", charge_status: "NOT_CHARGED", details: { accepted_input: { canonical_example: { endpoint: "https://public-service.example/path" } } } } });
       expect(fake.settle).not.toHaveBeenCalled();
 
       const unapprovedBuyerProof = await app.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "payment-signature": "paid" }, payload: { ...validEndpointRequest, authorize_buyer_proof: true } });
@@ -147,15 +147,20 @@ describe.skipIf(!databaseUrl)("settlement-before-publication lifecycle", () => {
       await sql.unsafe(`SET search_path TO ${schema}`); await applyReleaseMigrations(sql);
       const config = loadConfig({ NODE_ENV: "test", BUILD_SHA: "abcdef1", DATABASE_URL: databaseUrl!, OPERATOR_WALLET: "0x7bb9c4d6e06b9dee783eb31ff73d9345803efbd2", REPORT_TOKEN_SECRET: "test-secret-that-is-longer-than-thirty-two-bytes" });
       const app = Fastify(); const fake = gateway(); mountReleaseGate(app, config, { sql } as unknown as Database, { gateway: fake, egress: egress() });
-      const requestBody = { schema_version: "preflight.verify-release-request.v1", endpoint: manifestFixture.target.endpoint };
-      const unpaid = await app.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "idempotency-key": "endpoint-only-identity-0001" }, payload: requestBody }); expect(unpaid.statusCode).toBe(402);
-      const paid = await app.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "idempotency-key": "endpoint-only-identity-0001", "payment-signature": "paid" }, payload: requestBody });
+      const requestBody = { endpoint: manifestFixture.target.endpoint };
+      const unpaid = await app.inject({ method: "POST", url: "/api/v1/verify-release", payload: requestBody }); expect(unpaid.statusCode).toBe(402);
+      const paid = await app.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "payment-signature": "paid" }, payload: requestBody });
       expect(paid.statusCode).toBe(200); const response = paid.json(); expect(response).toMatchObject({ schema_version: "preflight.release-report.v2", decision: "RELEASE", detail: { manifest: { canonical_manifest: { target: { interface_mode: "X402_HTTP" } } } } }); const report = response.detail;
+      expect(fake.settle).toHaveBeenCalledTimes(1);
       const events = await app.inject({ method: "GET", url: `/api/v1/runs/${report.report_id}/events`, headers: { authorization: `Bearer ${report.report_access.access_token}` } });
       expect(events.statusCode).toBe(200); expect(events.json().events.map((item: { stage: string }) => item.stage)).toEqual(expect.arrayContaining(["reachable", "challenge_parsed", "surface_reconstructed", "intent_reconciled", "decision_sealed", "settled", "delivered"]));
       const machine = await app.inject({ method: "GET", url: `/api/v1/reports/${report.report_id}/machine`, headers: { authorization: `Bearer ${report.report_access.access_token}` } });
       expect(machine.statusCode).toBe(200); expect(machine.json()).toMatchObject({ schema_version: "preflight.machine-report.v1.1", decision: "RELEASE", exit_code: 0 });
       const denied = await app.inject({ method: "GET", url: `/api/v1/runs/${report.report_id}/events` }); expect(denied.statusCode).toBe(404);
+      const replay = await app.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "payment-signature": "paid" }, payload: requestBody });
+      expect(replay.statusCode).toBe(200); expect(replay.json().detail.report_id).toBe(report.report_id); expect(fake.settle).toHaveBeenCalledTimes(1);
+      const changedBodySameAuthorization = await app.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "payment-signature": "paid" }, payload: { ...requestBody, include_in_gallery: true } });
+      expect(changedBodySameAuthorization.statusCode).toBe(409); expect(changedBodySameAuthorization.json()).toMatchObject({ error: { code: "PAYMENT_REPLAY", charge_status: "NOT_CHARGED" } }); expect(fake.settle).toHaveBeenCalledTimes(1);
       await app.close();
     } finally { await sql.unsafe(`DROP SCHEMA ${schema} CASCADE`); await sql.end(); }
   }, 30_000);

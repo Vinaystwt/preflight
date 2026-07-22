@@ -2,6 +2,8 @@ import Fastify from "fastify";
 import { describe, expect, it, vi } from "vitest";
 import { loadConfig } from "../src/config.js";
 import type { Database } from "../src/db/client.js";
+import { verifyReleaseRequestV1Schema } from "../src/contracts/release-gate.js";
+import { mountMcp } from "../src/mcp/server.js";
 import type { ReleasePaymentGateway } from "../src/payments/release-gateway.js";
 import { mountReleaseGate } from "../src/routes/release-gate.js";
 import { manifestFixture } from "./helpers/manifest.js";
@@ -33,6 +35,7 @@ async function app() {
     COHORT_ENABLED: "false"
   });
   mountReleaseGate(fastify, config, { sql: (() => undefined) } as unknown as Database, { gateway: gateway(), buyerProof: null });
+  mountMcp(fastify, config);
   await fastify.ready();
   return fastify;
 }
@@ -79,15 +82,51 @@ describe("reviewer x402 challenge invariant", () => {
     const server = await app();
     const malformed = await server.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "payment-signature": "paid", "content-type": "application/json" }, payload: "{" });
     expect(malformed.statusCode).toBe(400);
-    expect(malformed.json()).toMatchObject({ error: { code: "VERIFY_REQUEST_INVALID", charge_status: "NOT_CHARGED" } });
+    expect(malformed.json()).toMatchObject({ error: { code: "VERIFY_REQUEST_INVALID", charge_status: "NOT_CHARGED", details: { issues: [{ path: "$", code: "invalid_json" }], accepted_input: { canonical_example: { endpoint: "https://public-service.example/path" } } } } });
 
     const invalid = await server.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "payment-signature": "paid", "content-type": "application/json" }, payload: "{}" });
     expect(invalid.statusCode).toBe(400);
-    expect(invalid.json()).toMatchObject({ error: { code: "VERIFY_REQUEST_INVALID", charge_status: "NOT_CHARGED" } });
+    expect(invalid.json()).toMatchObject({ error: { code: "VERIFY_REQUEST_INVALID", charge_status: "NOT_CHARGED", details: { accepted_input: { schema_url: "https://api.usepreflight.xyz/api/v1/contracts/verify-release-request/v1" } } } });
 
     const wrongContentType = await server.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "payment-signature": "paid", "content-type": "text/plain" }, payload: JSON.stringify({ endpoint: manifestFixture.target.endpoint }) });
     expect(wrongContentType.statusCode).toBe(400);
-    expect(wrongContentType.json()).toMatchObject({ error: { code: "VERIFY_REQUEST_INVALID", charge_status: "NOT_CHARGED" } });
+    expect(wrongContentType.json()).toMatchObject({ error: { code: "VERIFY_REQUEST_INVALID", charge_status: "NOT_CHARGED", details: { issues: [{ path: "$", code: "invalid_content_type" }] } } });
+    await server.close();
+  });
+
+  it("accepts the generic buyer endpoint contract and normalizes documented aliases", () => {
+    const endpoint = manifestFixture.target.endpoint;
+    for (const body of [
+      { endpoint },
+      { schema_version: "preflight.verify-release-request.v1", endpoint },
+      { url: endpoint },
+      { target_url: endpoint },
+      { targetUrl: endpoint },
+      { service_url: endpoint },
+      { service_endpoint: endpoint },
+      { agent_url: endpoint },
+      { target: { endpoint } }
+    ]) {
+      expect(verifyReleaseRequestV1Schema.parse(body)).toMatchObject({ schema_version: "preflight.verify-release-request.v1", endpoint, include_in_gallery: false });
+    }
+    expect(verifyReleaseRequestV1Schema.parse({ agent_id: "2013" })).toMatchObject({ schema_version: "preflight.verify-release-request.v1", agent_id: "2013" });
+    expect(() => verifyReleaseRequestV1Schema.parse({ endpoint, agent_id: "2013" })).toThrow(/exactly one/i);
+    expect(() => verifyReleaseRequestV1Schema.parse({ endpoint, url: "https://other.example/service" })).toThrow(/conflicting/i);
+    expect(() => verifyReleaseRequestV1Schema.parse({ endpoint, intent: "verify" })).toThrow(/Unrecognized key/);
+    expect(() => verifyReleaseRequestV1Schema.parse({ endpoint: "http://example.com/service" })).toThrow(/HTTPS/i);
+  });
+
+  it("exposes the full verify_release inputSchema through raw MCP tools/list", async () => {
+    const server = await app();
+    const response = await server.inject({ method: "POST", url: "/mcp", payload: { jsonrpc: "2.0", id: 1, method: "tools/list" } });
+    expect(response.statusCode).toBe(200);
+    const tool = response.json().result.tools.find((item: { name: string }) => item.name === "verify_release");
+    expect(tool.inputSchema).toMatchObject({
+      type: "object",
+      properties: { endpoint: { type: "string" }, agent_id: { type: "string" }, authorize_buyer_proof: { type: "boolean" } },
+      examples: [{ endpoint: "https://public-service.example/path" }]
+    });
+    expect(tool.inputSchema).not.toEqual({ type: "object" });
     await server.close();
   });
 });

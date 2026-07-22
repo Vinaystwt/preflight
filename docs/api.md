@@ -24,12 +24,19 @@ POST /api/v1/verify-release
 content-type: application/json
 
 {
-  "schema_version": "preflight.verify-release-request.v1",
   "endpoint": "https://api.example.com/paid-route"
 }
 ```
 
-This endpoint is x402-gated. An unpaid request returns HTTP 402 and a `PAYMENT-REQUIRED` challenge. A funded agent replays with `PAYMENT-SIGNATURE`.
+This endpoint is x402-gated. An unpaid request returns HTTP 402 and a `PAYMENT-REQUIRED` challenge before business-body validation. A funded agent replays with `PAYMENT-SIGNATURE`.
+
+The canonical minimum request is:
+
+```json
+{ "endpoint": "https://public-service.example/path" }
+```
+
+`schema_version` is optional and defaults internally to `preflight.verify-release-request.v1`. `agent_id` is the supported alternative to `endpoint`; provide exactly one target. `Idempotency-Key` is optional for generic buyers because PreFlight derives replay-safe idempotency from the verified payment authorization and canonical request when the header is absent.
 
 The response is a private report envelope containing the decision, criterion evidence, receipt metadata, and a capability report link.
 
@@ -68,6 +75,7 @@ Passport badges are public only for eligible Agent-ID RELEASE passports. Gallery
 
 ```text
 GET /api/v1/contracts/release-manifest/v1
+GET /api/v1/contracts/verify-release-request/v1
 GET /api/v1/contracts/discovery/v1
 GET /api/v1/contracts/run-events/v1
 GET /api/v1/contracts/machine-report/v1
