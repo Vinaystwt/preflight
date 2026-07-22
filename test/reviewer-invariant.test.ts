@@ -6,7 +6,7 @@ import type { Database } from "../src/db/client.js";
 import { verifyReleaseRequestV1Schema } from "../src/contracts/release-gate.js";
 import { mountMcp } from "../src/mcp/server.js";
 import { decodeReleasePaymentAuthorization, type ReleasePaymentGateway } from "../src/payments/release-gateway.js";
-import { mountReleaseGate } from "../src/routes/release-gate.js";
+import { mountReleaseGate, verifyReleaseGetQueryToBody } from "../src/routes/release-gate.js";
 import { manifestFixture } from "./helpers/manifest.js";
 
 const requirement = { scheme: "exact", network: "eip155:196", amount: "100000", asset: manifestFixture.payment.asset, payTo: manifestFixture.payment.pay_to, maxTimeoutSeconds: 300, extra: { name: "USD₮0", version: "1" } } as const;
@@ -189,6 +189,50 @@ describe("reviewer x402 challenge invariant", () => {
     expect(conflict.json()).toMatchObject({ error: { code: "PAYMENT_AUTHORIZATION_INVALID", charge_status: "NOT_CHARGED", details: { reason: "conflicting_payment_headers" } } });
     expect(fake.settle).not.toHaveBeenCalled();
     await server.close();
+  });
+
+  it("recognizes reviewer-style GET payment headers instead of issuing another missing-header challenge", async () => {
+    const fake = gateway();
+    const server = await app(fake);
+    const cases = [
+      { name: "legacy X-PAYMENT", headers: { "x-payment": "paid" } },
+      { name: "PAYMENT-SIGNATURE", headers: { "payment-signature": "paid" } }
+    ];
+    for (const item of cases) {
+      const response = await server.inject({ method: "GET", url: "/api/v1/verify-release", headers: item.headers });
+      expect(response.statusCode, item.name).toBe(400);
+      expect(response.json()).toMatchObject({
+        error: {
+          code: "VERIFY_REQUEST_INVALID",
+          charge_status: "NOT_CHARGED",
+          details: {
+            accepted_input: {
+              canonical_example: { endpoint: "https://public-service.example/path" }
+            }
+          }
+        }
+      });
+    }
+    expect(fake.verify).toHaveBeenCalledTimes(2);
+    expect(fake.settle).not.toHaveBeenCalled();
+
+    const malformed = await server.inject({ method: "GET", url: "/api/v1/verify-release?endpoint=https%3A%2F%2Fapi.usepreflight.xyz%2Fapi%2Fv1%2Fverify-release", headers: { "x-payment": "not-a-payment" } });
+    expect(malformed.statusCode).toBe(402);
+    expect(malformed.json()).toMatchObject({ error: { code: "PAYMENT_AUTHORIZATION_INVALID", charge_status: "NOT_CHARGED", details: { supplied_payment_header: true, reason: "malformed_header" } } });
+    expect(malformed.json().error.details.reason).not.toBe("missing_header");
+    await server.close();
+  });
+
+  it("normalizes GET query targets through the same verify_release input schema", () => {
+    const endpoint = manifestFixture.target.endpoint;
+    expect(verifyReleaseGetQueryToBody({ endpoint })).toEqual({ endpoint });
+    expect(verifyReleaseGetQueryToBody({ "target.endpoint": endpoint })).toEqual({ target: { endpoint } });
+    expect(verifyReleaseGetQueryToBody({ agent_id: "2013" })).toEqual({ agent_id: "2013" });
+    expect(verifyReleaseRequestV1Schema.parse(verifyReleaseGetQueryToBody({ url: endpoint }))).toMatchObject({ endpoint });
+    expect(verifyReleaseRequestV1Schema.parse(verifyReleaseGetQueryToBody({ agent_id: "2013" }))).toMatchObject({ agent_id: "2013" });
+    expect(() => verifyReleaseRequestV1Schema.parse(verifyReleaseGetQueryToBody({ endpoint, agent_id: "2013" }))).toThrow(/exactly one/i);
+    expect(() => verifyReleaseRequestV1Schema.parse(verifyReleaseGetQueryToBody({ endpoint, url: "https://other.example/service" }))).toThrow(/conflicting/i);
+    expect(() => verifyReleaseRequestV1Schema.parse(verifyReleaseGetQueryToBody({ endpoint: "https://not a url" }))).toThrow(/url/i);
   });
 
   it("rejects malformed or mismatched payment authorizations before settlement", async () => {

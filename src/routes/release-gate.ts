@@ -64,6 +64,23 @@ function parsedPlaceholder(encodedLength: string | string[] | undefined) {
   replacement.receivedEncodedLength = value && /^\d+$/.test(value) ? Number(value) : 2;
   return replacement;
 }
+function hasReleasePaymentHeader(headers: FastifyRequest["headers"]): boolean {
+  return typeof headers["payment-signature"] === "string" || typeof headers["x-payment"] === "string";
+}
+function firstQueryValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.length === 1 ? firstQueryValue(value[0]) : value;
+  return value;
+}
+export function verifyReleaseGetQueryToBody(query: unknown): Record<string, unknown> {
+  if (!query || typeof query !== "object" || Array.isArray(query)) return {};
+  const source = query as Record<string, unknown>;
+  const body: Record<string, unknown> = {};
+  for (const key of ["endpoint", "url", "target_url", "targetUrl", "service_url", "service_endpoint", "agent_url", "agent_id", "schema_version", "include_in_gallery", "authorize_buyer_proof", "owner_attestation"]) {
+    if (key in source) body[key] = firstQueryValue(source[key]);
+  }
+  if ("target.endpoint" in source) body.target = { endpoint: firstQueryValue(source["target.endpoint"]) };
+  return body;
+}
 const EVENT_STAGE: Partial<Record<string, RunStageEventV1["stage"]>> = {
   REQUEST_VALIDATED: "reachable", REACHABLE: "reachable", MCP_DISCOVERED: "mcp_discovered", CHALLENGE_PARSED: "challenge_parsed", SURFACE_RECONSTRUCTED: "surface_reconstructed",
   INTENT_RECONCILED: "intent_reconciled", DECISION_SEALED: "decision_sealed", PAYMENT_VERIFIED: "authorized", SETTLEMENT_PENDING: "paid", PAYMENT_SETTLED: "settled", PAYMENT_SETTLED_RECONCILED: "settled",
@@ -354,6 +371,28 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
   app.get("/api/v1/verify-release", async (request, reply) => {
     if (!repository || !gateway) { const failure = error(request.id, "PAYMENT_SERVICE_UNAVAILABLE", "Paid verification is not ready.", "DEPENDENCY", 503, "NOT_CHARGED", true); return reply.header("Allow", "POST").code(failure.status).send(failure.body); }
     reply.header("Allow", "POST").header("Cache-Control", "no-store").header("Access-Control-Expose-Headers", "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE, Allow");
+    if (hasReleasePaymentHeader(request.headers)) {
+      const body = verifyReleaseGetQueryToBody(request.query);
+      const forwardedHeaders: Record<string, string> = { "content-type": "application/json" };
+      const paymentSignature = request.headers["payment-signature"];
+      const xPayment = request.headers["x-payment"];
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (typeof paymentSignature === "string") forwardedHeaders["payment-signature"] = paymentSignature;
+      if (typeof xPayment === "string") forwardedHeaders["x-payment"] = xPayment;
+      if (typeof idempotencyKey === "string") forwardedHeaders["idempotency-key"] = idempotencyKey;
+      const replay = await app.inject({
+        method: "POST",
+        url: "/api/v1/verify-release",
+        headers: forwardedHeaders,
+        payload: JSON.stringify(body),
+        remoteAddress: request.ip
+      });
+      for (const [key, value] of Object.entries(replay.headers)) {
+        if (key.toLowerCase() === "content-length" || value === undefined) continue;
+        reply.header(key, value as string | string[] | number);
+      }
+      return reply.code(replay.statusCode).send(replay.body);
+    }
     return sendChallenge(request, reply);
   });
 
