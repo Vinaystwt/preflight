@@ -104,7 +104,8 @@ function paidPointer(config: Config) {
     endpoint: `POST https://${config.PUBLIC_DOMAIN}/api/v1/verify-release`,
     how: "x402 v2: expect 402 + PAYMENT-REQUIRED, replay with PAYMENT-SIGNATURE",
     input: {
-      canonical_example: { endpoint: "https://public-service.example/path" },
+      canonical_example: { endpoint: "https://target-service.example/path" },
+      alternative_example: { agent_id: "5161" },
       schema_url: `https://${config.PUBLIC_DOMAIN}/api/v1/contracts/verify-release-request/v1`,
       json_schema: verifyReleaseRequestV1JsonSchema
     }

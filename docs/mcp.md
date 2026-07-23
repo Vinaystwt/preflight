@@ -27,10 +27,16 @@ Installing the CLI is not required to use MCP.
 The `verify_release` tool advertises the full input schema. The canonical generic-buyer request is:
 
 ```json
-{ "endpoint": "https://public-service.example/path" }
+{ "endpoint": "https://target-service.example/path" }
 ```
 
-`schema_version` is optional and defaults internally. `agent_id` may be used instead of `endpoint`, but callers must provide exactly one target.
+`schema_version` is optional and defaults internally. The supported alternative is:
+
+```json
+{ "agent_id": "5161" }
+```
+
+Callers must provide exactly one target.
 
 ## Paid tool behavior
 

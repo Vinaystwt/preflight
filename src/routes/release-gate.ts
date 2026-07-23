@@ -4,7 +4,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z, ZodError } from "zod";
 import type { Config } from "../config.js";
 import { canonicalHash, type JsonValue } from "../contracts/canonical.js";
-import { CONTRACT_VERSIONS, apiErrorV1Schema, discoveryResponseV1Schema, galleryResponseV1Schema, machineReportV1Schema, manifestHash, pubkeysResponseV1Schema, receiptEnvelopeV1Schema, releaseManifestV1Schema, runStatusV1Schema, runtimeSnapshotHash, verifyReleaseRequestV1JsonSchema, verifyReleaseRequestV1Schema, type ApiErrorV1, type CriterionResult, type RunStageEventV1, type VerifyReleaseResponseV1 } from "../contracts/release-gate.js";
+import { CONTRACT_VERSIONS, apiErrorV1Schema, discoveryResponseV1Schema, galleryResponseV1Schema, machineReportV1Schema, manifestHash, pubkeysResponseV1Schema, receiptEnvelopeV1Schema, releaseManifestV1Schema, runStatusV1Schema, runtimeSnapshotHash, verifyReleaseRequestV1JsonSchema, verifyReleaseRequestV1Schema, type ApiErrorV1, type CriterionResult, type DiscoveryResponseV1, type ReleaseManifestV1, type RunStageEventV1, type VerifyReleaseResponseV1 } from "../contracts/release-gate.js";
 import type { Database } from "../db/client.js";
 import { EgressPolicyError, SafeEgressClient } from "../egress/safe-client.js";
 import { createBuyerProofClient, type BuyerProofClient } from "../payments/buyer.js";
@@ -149,11 +149,97 @@ function invalidVerifyRequest(requestId: string, config: Config, issues: Array<{
       details: {
         issues,
         accepted_input: {
-          canonical_example: { endpoint: "https://public-service.example/path" },
+          canonical_example: { endpoint: "https://target-service.example/path" },
+          alternative_example: { agent_id: "5161" },
           schema_url: `https://${config.PUBLIC_DOMAIN}/api/v1/contracts/verify-release-request/v1`
         }
       }
     }
+  };
+}
+
+type TerminalNoGoResponse = {
+  schema_version: "preflight.terminal-no-go.v1";
+  decision: "BLOCK" | "UNKNOWN";
+  verdict: "NO-GO";
+  headline: string;
+  what_this_means: string;
+  target: { endpoint?: string; agent_id?: string };
+  primary_blocker: { code: string; observed: string; consequence: string; exact_fix: string };
+  payment: { authorization_verified: true; settled: false; charge_status: "NOT_CHARGED"; refund_required: false };
+  retryable: boolean;
+  accepted_input: { canonical_example: { endpoint: string }; alternative_example: { agent_id: string }; schema_url: string };
+  generated_at: string;
+};
+
+function terminalFix(code: string): string {
+  if (code === "TARGET_X402_MISSING") return "On the target service, return HTTP 402 for unpaid calls with PAYMENT-REQUIRED containing x402Version and a non-empty accepts[] array.";
+  if (code === "TARGET_X402_INCOMPLETE") return "Include network, asset, amount and payTo in at least one accepts[] entry of the PAYMENT-REQUIRED challenge.";
+  if (code === "TARGET_X402_MALFORMED") return "Base64-encode valid JSON in PAYMENT-REQUIRED with shape { x402Version, accepts:[{ scheme, network, amount, asset, payTo, maxTimeoutSeconds, extra }] }. ";
+  if (code === "TARGET_UNREACHABLE") return "Make the target endpoint publicly reachable over HTTPS with valid DNS, TCP and TLS before re-running PreFlight.";
+  if (code === "TARGET_TEMPORARILY_UNAVAILABLE") return "Retry after the target transport dependency recovers, or verify from a stable public HTTPS endpoint.";
+  if (code === "AGENT_SERVICE_UNAVAILABLE") return "Publish an A2MCP service on the OKX.AI agent listing with a usable endpoint and x402 pricing metadata.";
+  if (code === "AGENT_DISCOVERY_TEMPORARILY_UNAVAILABLE") return "Retry when OKX.AI agent discovery is reachable, or call PreFlight with the endpoint field directly.";
+  return "Return a complete, observable x402 service surface and then re-run PreFlight.";
+}
+
+function terminalNoGoFromDiscovery(options: { requestId: string; config: Config; endpoint?: string; agentId?: string; discovery?: DiscoveryResponseV1; code?: string; observed?: string; retryable?: boolean }): TerminalNoGoResponse {
+  const x402 = options.discovery?.observed_surface.x402;
+  const firstAccept = x402?.accepts?.[0];
+  const missingAcceptFields = firstAccept ? ["network", "asset", "amount", "payTo"].filter((field) => typeof firstAccept[field as keyof typeof firstAccept] !== "string" || !firstAccept[field as keyof typeof firstAccept]) : [];
+  const transientCodes = new Set(["TIMEOUT", "CONNECTION_RESET", "REQUEST_LIMIT"]);
+  const parseError = x402?.parse_error ?? null;
+  const deterministicTransportCodes = new Set(["DNS_FAIL", "DNS_PRIVATE_OR_MIXED", "TARGET_REJECTED", "TLS_INVALID", "REDIRECT_FORBIDDEN", "REDIRECT_MALFORMED", "REDIRECT_ORIGIN_REJECTED", "REDIRECT_LOOP", "REDIRECT_LIMIT", "RESPONSE_TOO_LARGE", "DECOMPRESSION_FAILED"]);
+  let code = options.code;
+  let observed = options.observed;
+  let retryable = options.retryable ?? false;
+  if (!code) {
+    if (parseError && transientCodes.has(parseError)) {
+      code = "TARGET_TEMPORARILY_UNAVAILABLE";
+      observed = `Target probe could not complete: ${parseError}.`;
+      retryable = true;
+    } else if (parseError && deterministicTransportCodes.has(parseError)) {
+      code = "TARGET_UNREACHABLE";
+      observed = `Target transport failed before a valid x402 challenge could be observed: ${parseError}.`;
+    } else if (parseError) {
+      code = "TARGET_X402_MALFORMED";
+      observed = `Target returned HTTP 402 but PAYMENT-REQUIRED could not be parsed: ${parseError}.`;
+    } else if (x402?.status !== 402) {
+      code = "TARGET_X402_MISSING";
+      observed = typeof x402?.status === "number" ? `Target returned HTTP ${x402.status}; no valid x402 payment challenge was observed.` : "No valid x402 payment challenge was observed.";
+    } else if (!x402.accepts?.length) {
+      code = "TARGET_X402_INCOMPLETE";
+      observed = "Target returned HTTP 402 but accepts[] was empty or absent.";
+    } else if (missingAcceptFields.length) {
+      code = "TARGET_X402_INCOMPLETE";
+      observed = `Target returned accepts[] but the first usable entry was missing: ${missingAcceptFields.join(", ")}.`;
+    } else {
+      code = "AGENT_SERVICE_UNAVAILABLE";
+      observed = "Discovery could not synthesize a usable release manifest from the observed target surface.";
+    }
+  }
+  const decision: "BLOCK" | "UNKNOWN" = retryable || code.includes("TEMPORARILY") ? "UNKNOWN" : "BLOCK";
+  return {
+    schema_version: "preflight.terminal-no-go.v1",
+    decision,
+    verdict: "NO-GO",
+    headline: decision === "BLOCK" ? "PreFlight could not produce a releasable service manifest for this target." : "PreFlight could not complete target discovery because a dependency was temporarily unavailable.",
+    what_this_means: "Your payment authorization was valid, but PreFlight did not settle it because the target failed before a publishable verification report could be generated. This terminal deliverable is returned for the buyer to act on; no refund is required because no charge was captured.",
+    target: { ...(options.endpoint ? { endpoint: options.endpoint } : {}), ...(options.agentId ? { agent_id: options.agentId } : {}) },
+    primary_blocker: {
+      code,
+      observed: observed ?? "Target discovery did not expose enough evidence to verify a release.",
+      consequence: decision === "BLOCK" ? "PreFlight cannot verify or publish this release path until the target exposes a usable x402 service surface." : "PreFlight cannot classify the target deterministically until the temporary dependency recovers.",
+      exact_fix: terminalFix(code)
+    },
+    payment: { authorization_verified: true, settled: false, charge_status: "NOT_CHARGED", refund_required: false },
+    retryable,
+    accepted_input: {
+      canonical_example: { endpoint: "https://target-service.example/path" },
+      alternative_example: { agent_id: "5161" },
+      schema_url: `https://${options.config.PUBLIC_DOMAIN}/api/v1/contracts/verify-release-request/v1`
+    },
+    generated_at: new Date().toISOString()
   };
 }
 
@@ -227,8 +313,8 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
     reconciliationTimer.unref();
   }
 
-  app.get("/api/v1/service", async () => ({ schema_version: "preflight.service.v1", service: "verify_release", purpose: "Compare an operator-confirmed release manifest with observable production behavior.", price_usdt: config.PRICE_VERIFY_RELEASE, network: config.RELEASE_PAYMENT_NETWORK, asset: config.RELEASE_PAYMENT_ASSET, endpoint: `https://${config.PUBLIC_DOMAIN}/api/v1/verify-release`, method: "POST", input: { canonical_example: { endpoint: "https://public-service.example/path" }, schema_url: `https://${config.PUBLIC_DOMAIN}/api/v1/contracts/verify-release-request/v1`, json_schema: verifyReleaseRequestV1JsonSchema }, contracts: { request: "/api/v1/contracts/verify-release-request/v1", manifest: "/api/v1/contracts/release-manifest/v1", machine_report: "/api/v1/contracts/machine-report/v1", run_events: "/api/v1/contracts/run-events/v1" }, decisions: ["RELEASE", "BLOCK", "UNKNOWN"], limitations: ["Public HTTPS only", "No target payment unless authorize_buyer_proof:true and owner_attestation:true", "No listing-approval or security guarantee"] }));
-  app.get("/api/v1/contracts/verify-release-request/v1", async () => ({ schema_version: CONTRACT_VERSIONS.request, json_schema: verifyReleaseRequestV1JsonSchema, canonical_example: { endpoint: "https://public-service.example/path" } }));
+  app.get("/api/v1/service", async () => ({ schema_version: "preflight.service.v1", service: "verify_release", purpose: "Compare an operator-confirmed release manifest with observable production behavior.", price_usdt: config.PRICE_VERIFY_RELEASE, network: config.RELEASE_PAYMENT_NETWORK, asset: config.RELEASE_PAYMENT_ASSET, endpoint: `https://${config.PUBLIC_DOMAIN}/api/v1/verify-release`, method: "POST", input: { canonical_example: { endpoint: "https://target-service.example/path" }, alternative_example: { agent_id: "5161" }, schema_url: `https://${config.PUBLIC_DOMAIN}/api/v1/contracts/verify-release-request/v1`, json_schema: verifyReleaseRequestV1JsonSchema }, contracts: { request: "/api/v1/contracts/verify-release-request/v1", manifest: "/api/v1/contracts/release-manifest/v1", machine_report: "/api/v1/contracts/machine-report/v1", run_events: "/api/v1/contracts/run-events/v1" }, decisions: ["RELEASE", "BLOCK", "UNKNOWN"], limitations: ["Public HTTPS only", "No target payment unless authorize_buyer_proof:true and owner_attestation:true", "No listing-approval or security guarantee"] }));
+  app.get("/api/v1/contracts/verify-release-request/v1", async () => ({ schema_version: CONTRACT_VERSIONS.request, json_schema: verifyReleaseRequestV1JsonSchema, canonical_example: { endpoint: "https://target-service.example/path" }, alternative_example: { agent_id: "5161" } }));
   app.get("/api/v1/contracts/release-manifest/v1", async () => ({ schema_version: CONTRACT_VERSIONS.manifest, json_schema: z.toJSONSchema(releaseManifestV1Schema) }));
   app.get("/api/v1/contracts/discovery/v1", async () => ({ schema_version: CONTRACT_VERSIONS.discovery, json_schema: z.toJSONSchema(discoveryResponseV1Schema) }));
   app.get("/api/v1/contracts/run-events/v1", async () => ({ schema_version: CONTRACT_VERSIONS.runStatus, json_schema: z.toJSONSchema(runStatusV1Schema) }));
@@ -428,29 +514,36 @@ export function mountReleaseGate(app: FastifyInstance, config: Config, database:
     const idempotencyKey = typeof idempotencyHeader === "string" && idempotencyHeader.length >= 16
       ? `client:${idempotencyHeader}:request:${canonicalRequestHash}`
       : `server:${resourceUrl}:payment:${paymentPayloadHash}:request:${canonicalRequestHash}`;
-    let resolved: { manifest: import("../contracts/release-gate.js").ReleaseManifestV1; probeInput?: unknown; discovery?: import("../contracts/release-gate.js").DiscoveryResponseV1; listing?: { agentId: string; serviceId: string; name: string | null; fee: string | null; asset: string | null; type: string | null } };
+    let resolved: { manifest: ReleaseManifestV1; probeInput?: unknown; discovery?: DiscoveryResponseV1; listing?: { agentId: string; serviceId: string; name: string | null; fee: string | null; asset: string | null; type: string | null } } | { terminal: TerminalNoGoResponse };
     try {
       resolved = "manifest" in parsed ? { manifest: parsed.manifest, probeInput: parsed.probe_input } : await (async () => {
         if ("agent_id" in parsed && parsed.agent_id) {
           const override = parsed.listing_override;
           const listing = override ? null : await repository.cachedAgentResolution(parsed.agent_id) ?? await agentResolver.resolve(parsed.agent_id);
           if (listing) await repository.cacheAgentResolution(listing, config.AGENT_RESOLUTION_TTL_SECONDS);
-          const service = override ? (() => { const item = override.services.find((candidate) => candidate.type === "A2MCP") ?? override.services[0]; return item ? { service_id: item.service_id, name: item.name ?? null, endpoint: item.endpoint, fee: item.fee ?? null, asset_contract: item.asset_contract ?? null, type: item.type } : null; })() : selectA2McpService(listing!);
-          if (!service) throw new Error("listing service unavailable");
+          const service = override ? (() => { const item = override.services.find((candidate) => candidate.type === "A2MCP"); return item ? { service_id: item.service_id, name: item.name ?? null, endpoint: item.endpoint, fee: item.fee ?? null, asset_contract: item.asset_contract ?? null, type: item.type } : null; })() : selectA2McpService(listing!);
+          if (!service) return { terminal: terminalNoGoFromDiscovery({ requestId: request.id, config, agentId: parsed.agent_id, code: "AGENT_SERVICE_UNAVAILABLE", observed: "The OKX.AI listing did not expose a usable A2MCP service endpoint." }) };
           const endpointProbeInput = parsed.probe_input ?? defaultDiscoveryProbeInput(service.endpoint);
           const discovered = await discoverReleaseSurface({ endpoint: service.endpoint, expected: parsed.expected, probeInput: endpointProbeInput, client: egress });
-          if (!discovered.proposed_manifest.manifest) throw new Error("discovery incomplete");
+          if (!discovered.proposed_manifest.manifest) return { terminal: terminalNoGoFromDiscovery({ requestId: request.id, config, endpoint: service.endpoint, agentId: parsed.agent_id, discovery: discovered }) };
           return { manifest: discovered.proposed_manifest.manifest, probeInput: endpointProbeInput, discovery: discovered, listing: { agentId: parsed.agent_id, serviceId: service.service_id, name: override?.name ?? (typeof listing?.name.value === "string" ? listing.name.value : null), fee: service.fee, asset: service.asset_contract, type: service.type } };
         }
         const endpointProbeInput = parsed.probe_input ?? defaultDiscoveryProbeInput(parsed.endpoint!);
         const discovered = await discoverReleaseSurface({ endpoint: parsed.endpoint!, expected: parsed.expected, probeInput: endpointProbeInput, client: egress });
-        if (!discovered.proposed_manifest.manifest) throw new Error("discovery incomplete");
+        if (!discovered.proposed_manifest.manifest) return { terminal: terminalNoGoFromDiscovery({ requestId: request.id, config, endpoint: parsed.endpoint!, discovery: discovered }) };
         return { manifest: discovered.proposed_manifest.manifest, probeInput: endpointProbeInput, discovery: discovered };
       })();
     } catch (cause) {
-      if (cause instanceof Error && (cause.message === "discovery incomplete" || cause.message === "listing service unavailable")) { const failure = error(request.id, "DISCOVERY_INCOMPLETE", "Discovery could not synthesize a complete manifest for this endpoint.", "VALIDATION", 400); return reply.code(failure.status).send(failure.body); }
-      if (cause instanceof Error && cause.name === "AgentResolutionUnavailable") { const failure = error(request.id, "AGENT_DISCOVERY_UNAVAILABLE", cause.message, "DEPENDENCY", 503, "NOT_CHARGED", true); return reply.code(failure.status).send(failure.body); }
+      if (cause instanceof Error && cause.name === "AgentResolutionUnavailable") resolved = { terminal: terminalNoGoFromDiscovery({ requestId: request.id, config, agentId: "agent_id" in parsed ? parsed.agent_id : undefined, code: "AGENT_DISCOVERY_TEMPORARILY_UNAVAILABLE", observed: cause.message, retryable: true }) };
+      else {
       request.log.error({ event: "verify_release_discovery_failed", err: cause }, "verify release discovery failed"); const failure = error(request.id, "PREFLIGHT_INTERNAL", "PreFlight could not discover the endpoint.", "INTERNAL", 500, "NOT_CHARGED", true); return reply.code(failure.status).send(failure.body);
+      }
+    }
+    if ("terminal" in resolved) {
+      const hostname = resolved.terminal.target.endpoint ? new URL(resolved.terminal.target.endpoint).hostname : null;
+      request.log.info({ event: "terminal_no_go_returned", request_id: request.id, reason_code: resolved.terminal.primary_blocker.code, target_hostname: hostname, decision: resolved.terminal.decision, charge_status: resolved.terminal.payment.charge_status, authorization_type: authorization.authorization.protocol }, "terminal no-go returned without settlement");
+      await repository.auditSystem("TERMINAL_NO_GO_RETURNED", { reason_code: resolved.terminal.primary_blocker.code, target_hostname: hostname, decision: resolved.terminal.decision, charge_status: "NOT_CHARGED", authorization_type: authorization.authorization.protocol }).catch((cause) => request.log.warn({ event: "terminal_no_go_audit_failed", err: cause }, "terminal no-go audit failed"));
+      return reply.code(200).send(resolved.terminal);
     }
     const digest = manifestHash(resolved.manifest); const manifestId = await repository.storeManifest(resolved.manifest, digest);
     const { run, duplicate } = await repository.beginRun(manifestId, request.id, idempotencyKey, POLICY_VERSION, config.BUILD_SHA);

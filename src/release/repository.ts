@@ -180,6 +180,10 @@ export class ReleaseRepository {
     if (!rows.length) throw new Error(`invalid run transition to ${to}`); await this.audit(runId, to, metadata);
   }
 
+  async auditSystem(event: string, metadata: Record<string, JsonValue>): Promise<void> {
+    await this.sql`INSERT INTO audit_events (event_type, safe_metadata) VALUES (${event}, ${this.sql.json(metadata)})`;
+  }
+
   async createPayment(runId: string, values: { payloadHash: string; identifier?: string; network: string; asset: string; amount: string; payTo: string; payer?: string }): Promise<string | null> {
     const id = `pay_${ulid()}`;
     const rows = await this.sql`INSERT INTO payment_attempts (id, run_id, payment_identifier, payment_payload_hash, network, asset, amount_atomic, pay_to, payer, verification_state, settlement_state)

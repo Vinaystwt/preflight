@@ -102,7 +102,7 @@ describe.skipIf(!databaseUrl)("settlement-before-publication lifecycle", () => {
 
       const invalidPaidBody = await app.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "payment-signature": "paid" }, payload: { invalid: true } });
       expect(invalidPaidBody.statusCode).toBe(400);
-      expect(invalidPaidBody.json()).toMatchObject({ error: { code: "VERIFY_REQUEST_INVALID", charge_status: "NOT_CHARGED", details: { accepted_input: { canonical_example: { endpoint: "https://public-service.example/path" } } } } });
+      expect(invalidPaidBody.json()).toMatchObject({ error: { code: "VERIFY_REQUEST_INVALID", charge_status: "NOT_CHARGED", details: { accepted_input: { canonical_example: { endpoint: "https://target-service.example/path" } } } } });
       expect(fake.settle).not.toHaveBeenCalled();
 
       const unapprovedBuyerProof = await app.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "payment-signature": "paid" }, payload: { ...validEndpointRequest, authorize_buyer_proof: true } });

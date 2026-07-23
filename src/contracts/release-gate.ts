@@ -147,7 +147,7 @@ export const verifyReleaseRequestV1JsonSchema = {
   additionalProperties: false,
   properties: {
     schema_version: { type: "string", const: "preflight.verify-release-request.v1", description: "Optional; defaults internally when omitted." },
-    endpoint: { type: "string", format: "uri", description: "Canonical target field. Must be a public HTTPS service endpoint, for example https://public-service.example/path." },
+    endpoint: { type: "string", format: "uri", description: "Canonical target field. Must be a public HTTPS service endpoint, for example https://target-service.example/path." },
     agent_id: { type: "string", minLength: 1, maxLength: 200, description: "Optional alternative to endpoint: resolve an OKX.AI Agent ID and verify its A2MCP service." },
     manifest: { description: "Advanced operator-confirmed manifest request. Use endpoint for generic buyer integrations.", $ref: "#/$defs/releaseManifestV1" },
     expected: { description: "Optional caller expectations compared against observed release behavior." },
@@ -167,7 +167,7 @@ export const verifyReleaseRequestV1JsonSchema = {
       then: { properties: { owner_attestation: { const: true } }, required: ["owner_attestation"] }
     }
   ],
-  examples: [{ endpoint: "https://public-service.example/path" }],
+  examples: [{ endpoint: "https://target-service.example/path" }, { agent_id: "5161" }],
   $defs: { releaseManifestV1: z.toJSONSchema(releaseManifestV1Schema) }
 } as const;
 

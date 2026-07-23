@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { loadConfig } from "../src/config.js";
 import type { Database } from "../src/db/client.js";
+import { EgressPolicyError, SafeEgressClient, type RawResponse } from "../src/egress/safe-client.js";
 import { verifyReleaseRequestV1Schema } from "../src/contracts/release-gate.js";
 import { mountMcp } from "../src/mcp/server.js";
 import { decodeReleasePaymentAuthorization, type ReleasePaymentGateway } from "../src/payments/release-gateway.js";
@@ -39,7 +40,13 @@ function gateway(overrides: Partial<ReleasePaymentGateway> = {}): ReleasePayment
   return base;
 }
 
-async function app(testGateway: ReleasePaymentGateway = gateway()) {
+const resolver = { resolve4: async () => ["93.184.216.34"], resolve6: async () => [] };
+const rawResponse = (status: number, body = "{}", headers: RawResponse["headers"] = {}): RawResponse => ({ status, headers, compressedBody: Buffer.from(body) });
+function egress(responses: RawResponse[]) {
+  return new SafeEgressClient({ resolver, requestOnce: async () => responses.shift() ?? rawResponse(404) });
+}
+
+async function app(testGateway: ReleasePaymentGateway = gateway(), options: { egress?: SafeEgressClient } = {}) {
   const fastify = Fastify();
   const config = loadConfig({
     NODE_ENV: "test",
@@ -48,7 +55,7 @@ async function app(testGateway: ReleasePaymentGateway = gateway()) {
     REPORT_TOKEN_SECRET: "test-secret-that-is-longer-than-thirty-two-bytes",
     COHORT_ENABLED: "false"
   });
-  mountReleaseGate(fastify, config, { sql: (() => undefined) } as unknown as Database, { gateway: testGateway, buyerProof: null });
+  mountReleaseGate(fastify, config, { sql: (() => undefined) } as unknown as Database, { gateway: testGateway, buyerProof: null, ...(options.egress ? { egress: options.egress } : {}) });
   mountMcp(fastify, config);
   await fastify.ready();
   return fastify;
@@ -156,7 +163,7 @@ describe("reviewer x402 challenge invariant", () => {
           details: {
             issues: [expect.objectContaining(item.issue)],
             accepted_input: {
-              canonical_example: { endpoint: "https://public-service.example/path" },
+              canonical_example: { endpoint: "https://target-service.example/path" },
               schema_url: "https://api.usepreflight.xyz/api/v1/contracts/verify-release-request/v1"
             }
           }
@@ -207,7 +214,7 @@ describe("reviewer x402 challenge invariant", () => {
           charge_status: "NOT_CHARGED",
           details: {
             accepted_input: {
-              canonical_example: { endpoint: "https://public-service.example/path" }
+              canonical_example: { endpoint: "https://target-service.example/path" }
             }
           }
         }
@@ -221,6 +228,64 @@ describe("reviewer x402 challenge invariant", () => {
     expect(malformed.json()).toMatchObject({ error: { code: "PAYMENT_AUTHORIZATION_INVALID", charge_status: "NOT_CHARGED", details: { supplied_payment_header: true, reason: "malformed_header" } } });
     expect(malformed.json().error.details.reason).not.toBe("missing_header");
     await server.close();
+  });
+
+  it("returns a terminal NO-GO deliverable for authorized targets that do not expose x402", async () => {
+    const fake = gateway();
+    const server = await app(fake, { egress: egress([rawResponse(200), rawResponse(200), rawResponse(404), rawResponse(404)]) });
+    const response = await server.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "payment-signature": "paid", "content-type": "application/json" }, payload: JSON.stringify({ endpoint: "https://example.com" }) });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["payment-response"]).toBeUndefined();
+    expect(response.headers["x-payment-response"]).toBeUndefined();
+    expect(response.json()).toMatchObject({
+      schema_version: "preflight.terminal-no-go.v1",
+      decision: "BLOCK",
+      verdict: "NO-GO",
+      target: { endpoint: "https://example.com" },
+      primary_blocker: { code: "TARGET_X402_MISSING", observed: "Target returned HTTP 200; no valid x402 payment challenge was observed." },
+      payment: { authorization_verified: true, settled: false, charge_status: "NOT_CHARGED", refund_required: false },
+      retryable: false
+    });
+    expect(JSON.stringify(response.json())).not.toMatch(/DISCOVERY_INCOMPLETE|stack|PAYMENT-SIGNATURE|X-PAYMENT:/i);
+    expect(fake.verify).toHaveBeenCalledTimes(1);
+    expect(fake.settle).not.toHaveBeenCalled();
+    await server.close();
+  });
+
+  it("returns terminal NO-GO for reviewer-style signed GET when target discovery cannot synthesize a manifest", async () => {
+    const fake = gateway();
+    const server = await app(fake, { egress: egress([rawResponse(404), rawResponse(404), rawResponse(404), rawResponse(404)]) });
+    const response = await server.inject({ method: "GET", url: "/api/v1/verify-release?endpoint=https%3A%2F%2Fexample.com", headers: { "x-payment": "paid" } });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["x-payment-response"]).toBeUndefined();
+    expect(response.json()).toMatchObject({
+      schema_version: "preflight.terminal-no-go.v1",
+      decision: "BLOCK",
+      verdict: "NO-GO",
+      primary_blocker: { code: "TARGET_X402_MISSING" },
+      payment: { charge_status: "NOT_CHARGED" }
+    });
+    expect(fake.verify).toHaveBeenCalledTimes(1);
+    expect(fake.settle).not.toHaveBeenCalled();
+    await server.close();
+  });
+
+  it("classifies malformed 402 and temporary discovery failures without charging", async () => {
+    const malformedGateway = gateway();
+    const malformedServer = await app(malformedGateway, { egress: egress([rawResponse(402, "{}", { "payment-required": "not-json" }), rawResponse(402, "{}", { "payment-required": "not-json" }), rawResponse(404), rawResponse(404)]) });
+    const malformed = await malformedServer.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "payment-signature": "paid", "content-type": "application/json" }, payload: JSON.stringify({ endpoint: "https://example.com" }) });
+    expect(malformed.statusCode).toBe(200);
+    expect(malformed.json()).toMatchObject({ decision: "BLOCK", verdict: "NO-GO", primary_blocker: { code: "TARGET_X402_MALFORMED" }, payment: { charge_status: "NOT_CHARGED" }, retryable: false });
+    expect(malformedGateway.settle).not.toHaveBeenCalled();
+    await malformedServer.close();
+
+    const timeoutGateway = gateway();
+    const timeoutServer = await app(timeoutGateway, { egress: new SafeEgressClient({ resolver, requestOnce: async () => { throw new EgressPolicyError("TIMEOUT", "Target request exceeded total deadline"); } }) });
+    const timeout = await timeoutServer.inject({ method: "POST", url: "/api/v1/verify-release", headers: { "payment-signature": "paid", "content-type": "application/json" }, payload: JSON.stringify({ endpoint: "https://example.com" }) });
+    expect(timeout.statusCode).toBe(200);
+    expect(timeout.json()).toMatchObject({ decision: "UNKNOWN", verdict: "NO-GO", primary_blocker: { code: "TARGET_TEMPORARILY_UNAVAILABLE" }, payment: { charge_status: "NOT_CHARGED" }, retryable: true });
+    expect(timeoutGateway.settle).not.toHaveBeenCalled();
+    await timeoutServer.close();
   });
 
   it("normalizes GET query targets through the same verify_release input schema", () => {
@@ -294,17 +359,17 @@ describe("reviewer x402 challenge invariant", () => {
     expect(service.statusCode).toBe(200);
     expect(service.json()).toMatchObject({
       input: {
-        canonical_example: { endpoint: "https://public-service.example/path" },
+        canonical_example: { endpoint: "https://target-service.example/path" },
         schema_url: "https://api.usepreflight.xyz/api/v1/contracts/verify-release-request/v1",
         json_schema: { type: "object", properties: { endpoint: { type: "string" } } }
       }
     });
     const contract = await server.inject({ method: "GET", url: "/api/v1/contracts/verify-release-request/v1" });
     expect(contract.statusCode).toBe(200);
-    expect(contract.json()).toMatchObject({ canonical_example: { endpoint: "https://public-service.example/path" }, json_schema: { properties: { endpoint: { type: "string" } } } });
+    expect(contract.json()).toMatchObject({ canonical_example: { endpoint: "https://target-service.example/path" }, json_schema: { properties: { endpoint: { type: "string" } } } });
     const openapi = JSON.parse(readFileSync(new URL("../docs/openapi.release-gate.v1.json", import.meta.url), "utf8")) as { paths: Record<string, { post?: { requestBody?: { content?: { "application/json"?: { examples?: unknown; schema?: unknown } } } } }> };
     const verifyReleasePath = openapi.paths["/api/v1/verify-release"];
-    expect(verifyReleasePath?.post?.requestBody?.content?.["application/json"]?.examples).toMatchObject({ canonical: { value: { endpoint: "https://public-service.example/path" } } });
+    expect(verifyReleasePath?.post?.requestBody?.content?.["application/json"]?.examples).toMatchObject({ canonical: { value: { endpoint: "https://target-service.example/path" } } });
     const mcp = await server.inject({ method: "POST", url: "/mcp", payload: { jsonrpc: "2.0", id: 1, method: "tools/list" } });
     const tool = mcp.json().result.tools.find((item: { name: string }) => item.name === "verify_release");
     expect(tool.inputSchema).toMatchObject(contract.json().json_schema);
@@ -319,7 +384,7 @@ describe("reviewer x402 challenge invariant", () => {
     expect(tool.inputSchema).toMatchObject({
       type: "object",
       properties: { endpoint: { type: "string" }, agent_id: { type: "string" }, authorize_buyer_proof: { type: "boolean" } },
-      examples: [{ endpoint: "https://public-service.example/path" }]
+      examples: [{ endpoint: "https://target-service.example/path" }, { agent_id: "5161" }]
     });
     expect(tool.inputSchema).not.toEqual({ type: "object" });
     await server.close();
@@ -332,7 +397,7 @@ describe("reviewer x402 challenge invariant", () => {
     expect(initialize.json()).toMatchObject({ jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-03-26", capabilities: { tools: {} } } });
     const invalidToolArgs = await server.inject({ method: "POST", url: "/mcp", payload: { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "verify_release", arguments: [] } } });
     expect(invalidToolArgs.statusCode).toBe(200);
-    expect(invalidToolArgs.json()).toMatchObject({ result: { structuredContent: { paid: true, input: { canonical_example: { endpoint: "https://public-service.example/path" } } } } });
+    expect(invalidToolArgs.json()).toMatchObject({ result: { structuredContent: { paid: true, input: { canonical_example: { endpoint: "https://target-service.example/path" } } } } });
     const unknownTool = await server.inject({ method: "POST", url: "/mcp", payload: { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "missing_tool", arguments: {} } } });
     expect(unknownTool.statusCode).toBe(200);
     expect(unknownTool.json()).toMatchObject({ jsonrpc: "2.0", id: 3, error: { code: expect.any(Number), message: expect.stringMatching(/tool|not found|unknown/i) } });

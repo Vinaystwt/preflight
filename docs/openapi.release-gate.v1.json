@@ -44,7 +44,7 @@
       "get": {
         "responses": {
           "200": {
-            "description": "Canonical verify_release request JSON Schema. Minimal generic-buyer body: {\"endpoint\":\"https://public-service.example/path\"}."
+            "description": "Canonical verify_release request JSON Schema. Minimal generic-buyer body: {\"endpoint\":\"https://target-service.example/path\"}. Alternative OKX.AI lookup body: {\"agent_id\":\"5161\"}."
           }
         }
       }
@@ -206,7 +206,12 @@
               "examples": {
                 "canonical": {
                   "value": {
-                    "endpoint": "https://public-service.example/path"
+                    "endpoint": "https://target-service.example/path"
+                  }
+                },
+                "agent": {
+                  "value": {
+                    "agent_id": "5161"
                   }
                 }
               }
@@ -215,7 +220,7 @@
         },
         "responses": {
           "200": {
-            "description": "Settlement-confirmed judge-facing v2 report; `detail` retains the v1 private report shape.",
+            "description": "Settlement-confirmed judge-facing v2 report, or terminal NO-GO deliverable when target discovery fails before settlement.",
             "content": {
               "application/json": {
                 "schema": {
@@ -851,7 +856,7 @@
           "endpoint": {
             "type": "string",
             "format": "uri",
-            "description": "Canonical target field. Must be a public HTTPS service endpoint, for example https://public-service.example/path."
+            "description": "Canonical target field. Must be a public HTTPS service endpoint, for example https://target-service.example/path."
           },
           "agent_id": {
             "type": "string",
@@ -967,7 +972,10 @@
         ],
         "examples": [
           {
-            "endpoint": "https://public-service.example/path"
+            "endpoint": "https://target-service.example/path"
+          },
+          {
+            "agent_id": "5161"
           }
         ],
         "$defs": {

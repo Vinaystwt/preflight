@@ -2531,7 +2531,10 @@ exports[`Release Gate frozen contracts > freezes JSON Schema snapshots 1`] = `
     "description": "Canonical public input for PreFlight Release Gate. Generic buyers only need endpoint. schema_version is optional and defaults internally to preflight.verify-release-request.v1.",
     "examples": [
       {
-        "endpoint": "https://public-service.example/path",
+        "endpoint": "https://target-service.example/path",
+      },
+      {
+        "agent_id": "5161",
       },
     ],
     "oneOf": [
@@ -2605,7 +2608,7 @@ exports[`Release Gate frozen contracts > freezes JSON Schema snapshots 1`] = `
         "type": "boolean",
       },
       "endpoint": {
-        "description": "Canonical target field. Must be a public HTTPS service endpoint, for example https://public-service.example/path.",
+        "description": "Canonical target field. Must be a public HTTPS service endpoint, for example https://target-service.example/path.",
         "format": "uri",
         "type": "string",
       },
